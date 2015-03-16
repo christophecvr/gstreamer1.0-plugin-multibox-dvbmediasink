@@ -73,8 +73,13 @@
 #include <string.h>
 #include <stdio.h>
 
+#if GST_VERSION_MAJOR < 1
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
+#else
+#include <gstreamer-1.0/gst/gst.h>
+#include <gstreamer-1.0/gst/base/gstbasesink.h>
+#endif
 
 #define PACK_UNPACKED_XVID_DIVX5_BITSTREAM
 
@@ -418,6 +423,7 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		break;
 	case GST_EVENT_EOS:
 	{
+		gboolean pass_eos = FALSE;
 		struct pollfd pfd[2];
 		pfd[0].fd = self->unlockfd[0];
 		pfd[0].events = POLLIN;
@@ -449,7 +455,7 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 			if (pfd[1].revents & POLLIN)
 			{
 				GST_DEBUG_OBJECT (self, "got buffer empty from driver!\n");
-				ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+				pass_eos = TRUE;
 				break;
 			}
 
@@ -465,6 +471,8 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 #else
 		GST_BASE_SINK_PREROLL_LOCK(sink);
 #endif
+		if(pass_eos)
+			ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 
 		break;
 	}
@@ -1590,13 +1598,13 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 		{
 			self->stream_type = STREAMTYPE_VC1;
 			self->codec_type = CT_VC1;
-			GST_INFO_OBJECT (self, "MIMETYPE video/x-wmv WVC1 -> STREAMTYPE_VC1");
+			GST_INFO_OBJECT (self, "MIMETYPE video/x-wmv %s -> STREAMTYPE_VC1", value);
 		}
 		else
 		{
 			self->stream_type = STREAMTYPE_VC1_SM;
 			self->codec_type = CT_VC1_SM;
-			GST_INFO_OBJECT (self, "MIMETYPE video/x-wmv -> STREAMTYPE_VC1_SM");
+			GST_INFO_OBJECT (self, "MIMETYPE video/x-wmv %s -> STREAMTYPE_VC1_SM", value);
 		}
 	}
 
@@ -1655,6 +1663,19 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 					codec_data_pointer = codecdatamap.data;
 					codec_size = codecdatamap.size;
 #endif
+#if defined(VUPLUS) || defined(DREAMBOX)
+#if GST_VERSION_MAJOR < 1
+					self->codec_data = gst_buffer_new_and_alloc(8 + codec_size);
+					data = GST_BUFFER_DATA(self->codec_data);
+#else
+					GstMapInfo map;
+					self->codec_data = gst_buffer_new_and_alloc(8 + codec_size);
+					gst_buffer_map(self->codec_data, &map, GST_MAP_WRITE);
+					data = map.data;
+#endif
+					data += 8;
+					if (codec_data && codec_size) memcpy(data , codec_data_pointer, codec_size);
+#else
 					videocodecdata.length = 8 + codec_size;
 					data = videocodecdata.data = (guint8*)g_malloc(videocodecdata.length);
 					memset(data, 0, videocodecdata.length);
@@ -1662,8 +1683,12 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 					memcpy(data, codec_data_pointer, codec_size);
 					ioctl(self->fd, VIDEO_SET_CODEC_DATA, &videocodecdata);
 					g_free(videocodecdata.data);
+#endif
 #if GST_VERSION_MAJOR >= 1
 					gst_buffer_unmap(gst_value_get_buffer(codec_data), &codecdatamap);
+#if defined(VUPLUS) || defined(DREAMBOX)
+					gst_buffer_unmap(self->codec_data, &map);
+#endif
 #endif
 				}
 			}
@@ -1689,6 +1714,29 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 					if (codec_size > 4) codec_size = 4;
 					gst_structure_get_int(structure, "width", &width);
 					gst_structure_get_int(structure, "height", &height);
+#if defined(VUPLUS) || defined(DREAMBOX)
+#if GST_VERSION_MAJOR < 1
+					self->codec_data = gst_buffer_new_and_alloc(18 + codec_size);
+					data = GST_BUFFER_DATA(self->codec_data);
+#else
+					GstMapInfo map;
+					self->codec_data = gst_buffer_new_and_alloc(18 + codec_size);
+					gst_buffer_map(self->codec_data, &map, GST_MAP_WRITE);
+					data = map.data;
+#endif
+					/* pes header */
+					*(data++) = 0x00;
+					*(data++) = 0x00;
+					*(data++) = 0x01;
+					*(data++) = 0x0f;
+					/* width */
+					*(data++) = (width >> 8) & 0xff;
+					*(data++) = width & 0xff;
+					/* height */
+					*(data++) = (height >> 8) & 0xff;
+					*(data++) = height & 0xff;
+					if (codec_data && codec_size) memcpy(data, codec_data_pointer, codec_size);
+#else
 					videocodecdata.length = 33;
 					data = videocodecdata.data = (guint8*)g_malloc(videocodecdata.length);
 					memset(data, 0, videocodecdata.length);
@@ -1702,8 +1750,12 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 					if (codec_data && codec_size) memcpy(data, codec_data_pointer, codec_size);
 					ioctl(self->fd, VIDEO_SET_CODEC_DATA, &videocodecdata);
 					g_free(videocodecdata.data);
+#endif
 #if GST_VERSION_MAJOR >= 1
 					gst_buffer_unmap(gst_value_get_buffer(codec_data), &codecdatamap);
+#if defined(VUPLUS) || defined(DREAMBOX)
+					gst_buffer_unmap(self->codec_data, &map);
+#endif
 #endif
 				}
 			}

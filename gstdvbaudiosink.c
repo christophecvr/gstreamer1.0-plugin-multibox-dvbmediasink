@@ -74,9 +74,15 @@
 #include <poll.h>
 #include <stdio.h>
 
+#if GST_VERSION_MAJOR < 1
 #include <gst/gst.h>
 #include <gst/audio/audio.h>
 #include <gst/base/gstbasesink.h>
+#else
+#include <gstreamer-1.0/gst/gst.h>
+#include <gstreamer-1.0/gst/audio/audio.h>
+#include <gstreamer-1.0/gst/base/gstbasesink.h>
+#endif
 
 #include "common.h"
 #include "gstdvbaudiosink.h"
@@ -797,12 +803,12 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		break;
 	case GST_EVENT_EOS:
 	{
+		gboolean pass_eos = FALSE;
 		struct pollfd pfd[2];
 		pfd[0].fd = self->unlockfd[0];
 		pfd[0].events = POLLIN;
 		pfd[1].fd = self->fd;
 		pfd[1].events = POLLIN;
-
 #if GST_VERSION_MAJOR < 1
 		GST_PAD_PREROLL_UNLOCK(sink->sinkpad);
 #else
@@ -828,7 +834,7 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 			if (pfd[1].revents & POLLIN)
 			{
 				GST_DEBUG_OBJECT(self, "got buffer empty from driver!\n");
-				ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+				pass_eos = TRUE;
 				break;
 			}
 
@@ -844,7 +850,8 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 #else
 		GST_BASE_SINK_PREROLL_LOCK(sink);
 #endif
-
+		if (pass_eos)
+			ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		break;
 	}
 #if GST_VERSION_MAJOR < 1
@@ -1188,6 +1195,12 @@ GstFlowReturn gst_dvbaudiosink_push_buffer(GstDVBAudioSink *self, GstBuffer *buf
 		if (self->codec_data)
 		{
 			size_t payload_len = size;
+#ifdef DREAMBOX
+			pes_header[pes_header_len++] = 0x42; // B
+			pes_header[pes_header_len++] = 0x43; // C
+			pes_header[pes_header_len++] = 0x4D; // M
+			pes_header[pes_header_len++] = 0x41; // A
+#endif
 			pes_header[pes_header_len++] = (payload_len >> 24) & 0xff;
 			pes_header[pes_header_len++] = (payload_len >> 16) & 0xff;
 			pes_header[pes_header_len++] = (payload_len >> 8) & 0xff;
@@ -1214,6 +1227,12 @@ GstFlowReturn gst_dvbaudiosink_push_buffer(GstDVBAudioSink *self, GstBuffer *buf
 		if (self->codec_data && codec_data_size >= 18)
 		{
 			size_t payload_len = size;
+#ifdef DREAMBOX
+			pes_header[pes_header_len++] = 0x42; // B
+			pes_header[pes_header_len++] = 0x43; // C
+			pes_header[pes_header_len++] = 0x4D; // M
+			pes_header[pes_header_len++] = 0x41; // A
+#endif
 			pes_header[pes_header_len++] = (payload_len >> 24) & 0xff;
 			pes_header[pes_header_len++] = (payload_len >> 16) & 0xff;
 			pes_header[pes_header_len++] = (payload_len >> 8) & 0xff;

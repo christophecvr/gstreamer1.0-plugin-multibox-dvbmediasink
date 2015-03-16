@@ -220,6 +220,20 @@ AC_ARG_WITH(dtsdownmix,
 if test "$have_dtsdownmix" = "yes"; then
 	AC_DEFINE([HAVE_DTSDOWNMIX],[1],[Define to 1 for DTS downmix support])
 fi
+
+AC_ARG_WITH(vuplus,
+	AS_HELP_STRING([--with-vuplus],[build for vuplus, yes or no]),
+	[vuplus=$withval],[vuplus=no])
+if test "$vuplus" = "yes"; then
+	AC_DEFINE([VUPLUS],[1],[Define to 1 for vuplus ])
+fi
+
+AC_ARG_WITH(dreambox,
+	AS_HELP_STRING([--with-dreambox],[build for dreambox, yes or no]),
+	[dreambox=$withval],[dreambox=no])
+if test "$dreambox" = "yes"; then
+	AC_DEFINE([DREAMBOX],[1],[build for dreambox, yes or no ])
+fi
 DTS_LIBS="-ldca $LIBM"
 AC_SUBST(DTS_LIBS)
 AM_CONDITIONAL(HAVE_DTSDOWNMIX, test "$have_dtsdownmix" = "yes")
