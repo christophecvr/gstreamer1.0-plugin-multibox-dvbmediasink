@@ -1,9 +1,14 @@
 # gstreamer1.0-plugin-multibox-dvbmediasink
-This git is based on pli4 git://git.code.sf.net/p/openpli/gst-plugin-dvbmediasink Branche gst-1.0
+This git is based on pli4 git://git.code.sf.net/p/openpli/gst-plugin-dvbmediasink Branch gst-1.0
 It adds support for more boxes then only the et stb's.
 Boxes which currently should be ok are:
 vuplus series, dm8000 and dm800se
 Christophe Van Reusel
+alias : christophecvr
 stefansat@telenet.be
+
+An example off bb file is added.
+
+This is the one I use in openpli with the modern openembedded-oe-core.
 
 
