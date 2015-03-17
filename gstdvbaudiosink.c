@@ -1195,7 +1195,7 @@ GstFlowReturn gst_dvbaudiosink_push_buffer(GstDVBAudioSink *self, GstBuffer *buf
 		if (self->codec_data)
 		{
 			size_t payload_len = size;
-#ifdef DREAMBOX
+#if defined(DREAMBOX) || defined(DAGS)
 			pes_header[pes_header_len++] = 0x42; // B
 			pes_header[pes_header_len++] = 0x43; // C
 			pes_header[pes_header_len++] = 0x4D; // M
@@ -1227,7 +1227,7 @@ GstFlowReturn gst_dvbaudiosink_push_buffer(GstDVBAudioSink *self, GstBuffer *buf
 		if (self->codec_data && codec_data_size >= 18)
 		{
 			size_t payload_len = size;
-#ifdef DREAMBOX
+#if defined(DREAMBOX) || defined(DAGS)
 			pes_header[pes_header_len++] = 0x42; // B
 			pes_header[pes_header_len++] = 0x43; // C
 			pes_header[pes_header_len++] = 0x4D; // M

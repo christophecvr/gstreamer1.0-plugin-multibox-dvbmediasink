@@ -1663,7 +1663,7 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 					codec_data_pointer = codecdatamap.data;
 					codec_size = codecdatamap.size;
 #endif
-#if defined(VUPLUS) || defined(DREAMBOX)
+#if defined(VUPLUS) || defined(DREAMBOX) || defined(DAGS)
 #if GST_VERSION_MAJOR < 1
 					self->codec_data = gst_buffer_new_and_alloc(8 + codec_size);
 					data = GST_BUFFER_DATA(self->codec_data);
@@ -1686,7 +1686,7 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 #endif
 #if GST_VERSION_MAJOR >= 1
 					gst_buffer_unmap(gst_value_get_buffer(codec_data), &codecdatamap);
-#if defined(VUPLUS) || defined(DREAMBOX)
+#if defined(VUPLUS) || defined(DREAMBOX) || defined(DAGS)
 					gst_buffer_unmap(self->codec_data, &map);
 #endif
 #endif
@@ -1714,7 +1714,7 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 					if (codec_size > 4) codec_size = 4;
 					gst_structure_get_int(structure, "width", &width);
 					gst_structure_get_int(structure, "height", &height);
-#if defined(VUPLUS) || defined(DREAMBOX)
+#if defined(VUPLUS) || defined(DREAMBOX) || defined(DAGS)
 #if GST_VERSION_MAJOR < 1
 					self->codec_data = gst_buffer_new_and_alloc(18 + codec_size);
 					data = GST_BUFFER_DATA(self->codec_data);
@@ -1753,7 +1753,7 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 #endif
 #if GST_VERSION_MAJOR >= 1
 					gst_buffer_unmap(gst_value_get_buffer(codec_data), &codecdatamap);
-#if defined(VUPLUS) || defined(DREAMBOX)
+#if defined(VUPLUS) || defined(DREAMBOX) || defined(DAGS)
 					gst_buffer_unmap(self->codec_data, &map);
 #endif
 #endif
