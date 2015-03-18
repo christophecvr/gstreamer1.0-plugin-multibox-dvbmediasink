@@ -11,4 +11,13 @@ An example off bb file is added.
 
 This is the one I use in openpli with the modern openembedded-oe-core.
 
+How to use :
+
+For dreambox machines (dm8000 and dm800se) add --with-dreambox to DVBMEDIASINK_CONFIG.
+
+Examples configs :
+
+dreambox dm800se : DVBMEDIASINK_CONFIG = "--with-dreambox --with-pcm --with-wma --with-wmv --with-dtsdownmix --with-eac3"
+dreambox dm8000  : DVBMEDIASINK_CONFIG = "--with-dreambox --with-pcm --with-wma --with-wmv --with-dtsdownmix --with-eac3 --with-amr --with-limited-mpeg4v2"
+vuplus           : DVBMEDIASINK_CONFIG = "--with-vuplus --with-pcm --with-dtsdownmix --with-eac3 --with-amr --with-wmv"
 
