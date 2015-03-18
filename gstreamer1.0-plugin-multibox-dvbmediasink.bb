@@ -5,7 +5,6 @@ LICENSE = "GPLv2"
 LIC_FILES_CHKSUM = "file://COPYING;md5=7fbc338309ac38fefcd64b04bb903e34"
 
 DEPENDS = "gstreamer1.0 gstreamer1.0-plugins-base libdca"
-RDEPENDS_${PN} = "gstreamer1.0-libav"
 
 GSTVERSION = "1.0"
 
