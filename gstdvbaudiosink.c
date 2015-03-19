@@ -409,9 +409,9 @@ static GstCaps *gst_dvbaudiosink_get_caps(GstBaseSink *basesink, GstCaps *filter
 	{
 		gst_caps_append(caps, gst_caps_from_string(DTSCAPS));
 	}
-# endif
-#else
+# else
 	gst_caps_append(caps, gst_caps_from_string(DTSCAPS));
+# endif
 #endif
 
 #if GST_VERSION_MAJOR >= 1
