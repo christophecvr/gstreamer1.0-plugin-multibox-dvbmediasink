@@ -455,7 +455,6 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 			if (pfd[1].revents & POLLIN)
 			{
 				GST_DEBUG_OBJECT (self, "got buffer empty from driver!\n");
-				pass_eos = TRUE;
 				break;
 			}
 
@@ -471,9 +470,7 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 #else
 		GST_BASE_SINK_PREROLL_LOCK(sink);
 #endif
-		if(pass_eos)
-			ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
-
+		if (ret) ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		break;
 	}
 #if GST_VERSION_MAJOR < 1
