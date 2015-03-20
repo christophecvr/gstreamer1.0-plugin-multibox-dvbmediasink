@@ -1,4 +1,9 @@
+#if GST_VERSION_MAJOR < 1
 #include <gst/gst.h>
+#else
+#include <gstreamer-1.0/gst/gst.h>
+#endif
+
 
 #include "common.h"
 
