@@ -19,11 +19,6 @@ PV = "${GSTVERSION}+git${SRCPV}"
 PKGV = "${GSTVERSION}+git${GITPKGV}"
 PR = "r0"
 
-do_configure_prepend() {
-        sed -i 's/AC_INIT.*$/AC_INIT(gst-plugin-dvbmediasink, 1.0.0, @pli4)/' ${S}/configure.ac
-        sed -i 's/AM_INIT_AUTOMAKE.*$/AM_INIT_AUTOMAKE([foreign])/' ${S}/configure.ac
-}
-
 inherit autotools pkgconfig
 
 FILES_${PN} = "${libdir}/gstreamer-${GSTVERSION}/*.so*"
