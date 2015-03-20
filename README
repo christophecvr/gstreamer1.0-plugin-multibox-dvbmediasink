@@ -22,3 +22,10 @@ dreambox dm800se : DVBMEDIASINK_CONFIG = "--with-dreambox --with-pcm --with-wma 
 dreambox dm8000  : DVBMEDIASINK_CONFIG = "--with-dreambox --with-pcm --with-wma --with-wmv --with-dtsdownmix --with-eac3 --with-amr --with-limited-mpeg4v2"
 vuplus           : DVBMEDIASINK_CONFIG = "--with-vuplus --with-pcm --with-eac3 --with-amr --with-wmv"
 
+Note since 17032015 vuplus added new drivers.
+SRCDATE = "20150317"
+
+For all boxes with drivers from that date or above the --with-vuplus option is not required anymore.
+Then the dvbmediasink config for vuplus must be.
+vuplus           : DVBMEDIASINK_CONFIG = "--with-pcm --with-eac3 --with-amr --with-wmv"
+
