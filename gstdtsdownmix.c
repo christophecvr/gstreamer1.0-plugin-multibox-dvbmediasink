@@ -159,17 +159,23 @@ static gboolean gst_dtsdownmix_sink_event(GstPad * pad, GstObject *parent, GstEv
 
 			gst_segment_set_newsegment(&dts->segment, update, rate, format, start, end, pos);
 #else
+		case GST_EVENT_CAPS:
+			if (dts->srcpad)
+			{
+				GstCaps *caps;
+				gst_event_parse_caps (event, &caps);
+				ret = gst_dtsdownmix_setcaps(dts->srcpad, caps);
+			}
+			break;
 		case GST_EVENT_SEGMENT:
-		{
 			gst_event_copy_segment(event, &dts->segment);
 			dts->sent_segment = TRUE;
 			if (dts->srcpad)
 			{
 				ret = gst_pad_push_event(dts->srcpad, event);
 			}
-#endif
 			break;
-		}
+#endif
 		case GST_EVENT_TAG:
 			if (dts->srcpad)
 			{
