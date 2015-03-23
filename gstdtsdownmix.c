@@ -161,8 +161,6 @@ static gboolean gst_dtsdownmix_sink_event(GstPad * pad, GstObject *parent, GstEv
 		}
 #else
 		case GST_EVENT_SEGMENT:
-			gst_event_new_segment(&dts->segment);
-			gst_event_parse_new_segment(&dts->segment);
 			gst_event_copy_segment(event, &dts->segment);
 			dts->sent_segment = TRUE;
 			if (dts->srcpad)
@@ -231,7 +229,7 @@ static void gst_dtsdownmix_update_streaminfo(GstDtsDownmix *dts)
 static GstFlowReturn gst_dtsdownmix_handle_frame(GstDtsDownmix *dts, guint8 *data, guint length)
 {
 	gint num_blocks;
-	GstBuffer *buffer;
+	GstBuffer *buffer = NULL;
 	level_t level = 1;
 	sample_t bias = 0;
 	gint flags = DCA_STEREO; /* force downmix to stereo */
@@ -249,44 +247,7 @@ static GstFlowReturn gst_dtsdownmix_handle_frame(GstDtsDownmix *dts, guint8 *dat
 #if GST_VERSION_MAJOR < 1
 	if (gst_pad_alloc_buffer_and_set_caps(dts->srcpad, 0, num_blocks * 256 * dts->using_channels * 2 + 7, GST_PAD_CAPS(dts->srcpad), &buffer) == GST_FLOW_OK)
 #else
-	GstCaps *caps;
-	GstQuery *query;
-	GstStructure *structure;
-	GstBufferPool *pool;
-	GstStructure *config;
-	guint size, min, max, ret;
-	query = gst_query_new_allocation (caps, TRUE);
-//	caps = gst_pad_get_current_caps(dts->srcpad);
-
-	if (!gst_pad_peer_query (dts->srcpad, query)) {
-		/* query failed, not a problem, we use the query defaults */
-	}
-
-	if (gst_query_get_n_allocation_pools (query) > 0) {
-		/* we got configuration from our peer, parse them */
-		gst_query_parse_nth_allocation_pool (query, 0, &pool, &size, &min, &max);
-	} else {
-		pool = NULL;
-		size = 0;
-		min = max = 0;
-	}
-
-	if (pool == NULL) {
-	/* we did not get a pool, make one ourselves then */
-		pool = gst_buffer_pool_new ();
-	}
-
-	size = num_blocks * 256 * dts->using_channels * 2 + 7;
-	config = gst_buffer_pool_get_config (pool);
-	gst_buffer_pool_config_set_params (config, caps, size, min, max);
-	gst_buffer_pool_set_config (pool, config);
-
-	/* and activate */
-	gst_buffer_pool_set_active (pool, TRUE);
-	ret = gst_buffer_pool_acquire_buffer(pool, &buffer, NULL);
-	gst_buffer_make_writable(buffer);
-
-	if (ret == GST_FLOW_OK)
+	if ((buffer = gst_buffer_new_allocate(NULL, num_blocks * 256 * dts->using_channels * 2 + 7, NULL)))
 #endif
 	{
 		gint i;
@@ -574,7 +535,6 @@ static GstStateChangeReturn gst_dtsdownmix_change_state(GstElement * element, Gs
 				dts->srcpad = gst_pad_new_from_template(templ, "src");
 
 				gst_pad_set_caps(dts->srcpad, srccaps);
-				gst_caps_make_writable(srccaps);
 				gst_pad_set_active(dts->srcpad, TRUE);
 				gst_caps_unref(srccaps);
 				gst_element_add_pad(GST_ELEMENT(dts), dts->srcpad);
