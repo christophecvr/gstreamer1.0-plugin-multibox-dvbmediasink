@@ -6,14 +6,12 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <unistd.h>
 
 #include <gst/gst.h>
-#include <gst/audio/audio.h>
-#include <gst/base/gstbasesink.h>
 
 #include "gstdtsdownmix.h"
-#include "gstdvbsink-marshal.h"
+
+static gboolean get_downmix_setting();
 
 GST_DEBUG_CATEGORY_STATIC(dtsdownmix_debug);
 #define GST_CAT_DEFAULT (dtsdownmix_debug)
@@ -156,19 +154,37 @@ static gboolean gst_dtsdownmix_sink_event(GstPad * pad, GstObject *parent, GstEv
 					ret = gst_pad_push_event(dts->srcpad, event);
 				}
 			}
+
 			gst_segment_set_newsegment(&dts->segment, update, rate, format, start, end, pos);
-			break;
-		}
 #else
+		case GST_EVENT_CAPS:
+			if (!get_downmix_setting())
+			{
+				ret = FALSE;
+			}
+			else if (dts->srcpad)
+			{
+				GstCaps *caps;
+				GstCaps *srccaps = gst_caps_from_string("audio/x-private1-lpcm, framed =(boolean) true");
+
+				gst_event_parse_caps(event, &caps);
+				ret = gst_pad_set_caps(dts->srcpad, srccaps);
+
+				gst_caps_unref(srccaps);
+				gst_event_unref(event);
+			}
+			break;
 		case GST_EVENT_SEGMENT:
+		{
 			gst_event_copy_segment(event, &dts->segment);
 			dts->sent_segment = TRUE;
 			if (dts->srcpad)
 			{
 				ret = gst_pad_push_event(dts->srcpad, event);
 			}
-			break;
 #endif
+			break;
+		}
 		case GST_EVENT_TAG:
 			if (dts->srcpad)
 			{
@@ -188,7 +204,7 @@ static gboolean gst_dtsdownmix_sink_event(GstPad * pad, GstObject *parent, GstEv
 			}
 			break;
 		case GST_EVENT_FLUSH_STOP:
-      if (dts->cache) 
+			if (dts->cache)
 			{
 				gst_buffer_unref(dts->cache);
 				dts->cache = NULL;
