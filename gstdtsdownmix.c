@@ -6,14 +6,14 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <unistd.h>
 
-#if GST_VERSION_MAJOR < 1
 #include <gst/gst.h>
-#else
-#include <gstreamer-1.0/gst/gst.h>
-#endif
+#include <gst/audio/audio.h>
+#include <gst/base/gstbasesink.h>
 
 #include "gstdtsdownmix.h"
+#include "gstdvbsink-marshal.h"
 
 GST_DEBUG_CATEGORY_STATIC(dtsdownmix_debug);
 #define GST_CAT_DEFAULT (dtsdownmix_debug)

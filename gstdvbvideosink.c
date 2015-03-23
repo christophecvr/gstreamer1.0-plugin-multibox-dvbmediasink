@@ -73,13 +73,8 @@
 #include <string.h>
 #include <stdio.h>
 
-#if GST_VERSION_MAJOR < 1
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
-#else
-#include <gstreamer-1.0/gst/gst.h>
-#include <gstreamer-1.0/gst/base/gstbasesink.h>
-#endif
 
 #define PACK_UNPACKED_XVID_DIVX5_BITSTREAM
 
