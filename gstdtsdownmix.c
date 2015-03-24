@@ -6,8 +6,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include <gst/gst.h>
+#include <gst/audio/audio.h>
 
 #include "gstdtsdownmix.h"
 
