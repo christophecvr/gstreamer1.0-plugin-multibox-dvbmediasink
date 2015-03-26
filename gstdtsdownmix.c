@@ -425,6 +425,9 @@ static GstFlowReturn gst_dtsdownmix_chain(GstPad *pad, GstObject *parent, GstBuf
 			gint frame_length;
 			gint flags;
 			dts->framelength = dca_syncinfo(dts->state, data, &flags, &dts->sample_rate, &bit_rate, &frame_length);
+			/* temporary extra console debug info to trace downmix problem garbled sound by Stream with high frequencies VQ coding*/
+			printf("CVR-FRAME LENGHT CHECK dts->framelengt = %d flags = %d dst->samplerate = %d bit_rate = %d frame_lenght = %d size = %d\n", \
+					dts->framelength, flags, dts->sample_rate, bit_rate, frame_length, size);
 		}
 		if (dts->framelength == 0)
 		{
