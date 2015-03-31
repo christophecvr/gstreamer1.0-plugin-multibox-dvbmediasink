@@ -38,7 +38,8 @@ plugin_LTLIBRARIES += libgstdtsdownmix.la
 
 libgstdtsdownmix_la_SOURCES = gstdtsdownmix.c
 
-libgstdtsdownmix_la_CFLAGS = $(GST_CFLAGS)
-libgstdtsdownmix_la_LIBADD = $(GST_LIBS) -lgstbase-$(GST_MAJORMINOR) $(DTS_LIBS)
+libgstdtsdownmix_la_CFLAGS = $(GST_CFLAGS) $(GST_PLUGINS_BASE_CFLAGS) $(GST_BASE_CFLAGS) $(ORC_CFLAGS)
+libgstdtsdownmix_la_LIBADD = $(GST_LIBS) -lgstbase-$(GST_MAJORMINOR) $(DTS_LIBS) $(GST_PLUGINS_BASE_LIBS) $(GST_BASE_LIBS) -lgstaudio-$(GST_MAJORMINOR)
 libgstdtsdownmix_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
+libgstdtsdownmix_la_LIBTOOLFLAGS = $(GST_PLUGIN_LIBTOOLFLAGS)
 endif
