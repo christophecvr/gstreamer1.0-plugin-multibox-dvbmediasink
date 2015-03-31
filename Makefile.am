@@ -31,14 +31,15 @@ libgstdvbaudiosink_la_LIBADD = $(GST_LIBS) -lgstbase-$(GST_MAJORMINOR)
 libgstdvbaudiosink_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
 
 # headers we need but don't want installed
-noinst_HEADERS = gstdvbvideosink.h gstdvbaudiosink.h gstdtsdownmix.h
+noinst_HEADERS = gstdvbvideosink.h gstdvbaudiosink.h gstdtsdec.h
 
 if HAVE_DTSDOWNMIX
-plugin_LTLIBRARIES += libgstdtsdownmix.la
+plugin_LTLIBRARIES += libgstdtsdec.la
 
-libgstdtsdownmix_la_SOURCES = gstdtsdownmix.c
+libgstdtsdec_la_SOURCES = gstdtsdec.c
 
-libgstdtsdownmix_la_CFLAGS = $(GST_CFLAGS)
-libgstdtsdownmix_la_LIBADD = $(GST_LIBS) -lgstbase-$(GST_MAJORMINOR) $(DTS_LIBS)
-libgstdtsdownmix_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
+libgstdtsdec_la_CFLAGS = $(GST_CFLAGS) $(GST_PLUGINS_BASE_CFLAGS) $(GST_BASE_CFLAGS) $(ORC_CFLAGS)
+libgstdtsdec_la_LIBADD = $(GST_LIBS) -lgstbase-$(GST_MAJORMINOR) $(DTS_LIBS) $(GST_PLUGINS_BASE_LIBS) $(GST_BASE_LIBS) -lgstaudio-$(GST_MAJORMINOR)
+libgstdtsdec_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
+libgstdtsdec_la_LIBTOOLFLAGS = $(GST_PLUGIN_LIBTOOLFLAGS)
 endif
