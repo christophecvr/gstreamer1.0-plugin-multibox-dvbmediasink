@@ -79,7 +79,7 @@ typedef struct dts_state_s dca_state_t;
 #define dca_free dts_free
 #endif*/
 
-#include "gstdtsdec.h"
+#include "gstdtsdownmix.h"
 
 #if HAVE_ORC
 #include <orc/orc.h>
@@ -99,8 +99,8 @@ typedef struct dts_state_s dca_state_t;
 #define SAMPLE_TYPE GST_AUDIO_FORMAT_F32
 #endif
 
-GST_DEBUG_CATEGORY_STATIC (dtsdec_debug);
-#define GST_CAT_DEFAULT (dtsdec_debug)
+GST_DEBUG_CATEGORY_STATIC (dtsdownmix_debug);
+#define GST_CAT_DEFAULT (dtsdownmix_debug)
 
 enum
 {
@@ -768,13 +768,13 @@ gst_dtsdec_get_property (GObject * object, guint prop_id, GValue * value,
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_DEBUG_CATEGORY_INIT (dtsdec_debug, "dtsdec", 0, "DTS/DCA audio decoder");
+  GST_DEBUG_CATEGORY_INIT (dtsdownmix_debug, "dtsdownmix", 0, "DTS/DCA audio decoder");
 
 #if HAVE_ORC
   orc_init ();
 #endif
 
-  if (!gst_element_register (plugin, "dtsdec", GST_RANK_PRIMARY,
+  if (!gst_element_register (plugin, "dtsdownmix", GST_RANK_PRIMARY,
           GST_TYPE_DTSDEC))
     return FALSE;
 
@@ -785,5 +785,4 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     dtsdec,
     "Decodes DTS audio streams",
-//    plugin_init, VERSION, "GPL", GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN);
 	plugin_init, VERSION, "LGPL", "GStreamer", "http://gstreamer.net/");
