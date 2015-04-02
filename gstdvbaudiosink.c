@@ -267,6 +267,26 @@ static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
 	gint64 cur = 0;
 	if (self->fd < 0 || !self->playing || !self->pts_written) return GST_CLOCK_TIME_NONE;
 
+#ifdef DREAMBOX
+	if (self->pts_written)
+	{
+		ioctl(self->fd, AUDIO_GET_PTS, &cur);
+		if (cur)
+		{
+			self->lastpts = cur;
+		}
+		else
+		{
+			cur = self->lastpts;
+		}
+		cur *= 11111;
+		cur -= self->timestamp_offset;
+	}
+	else
+	{
+		cur = 0;
+	}
+#else
 	ioctl(self->fd, AUDIO_GET_PTS, &cur);
 	if (cur)
 	{
@@ -277,8 +297,10 @@ static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
 		cur = self->lastpts;
 	}
 	cur *= 11111;
+	cur -= self->timestamp_offset;
+#endif
 
-	return cur - self->timestamp_offset;
+	return cur;
 }
 
 static gboolean gst_dvbaudiosink_unlock(GstBaseSink *basesink)
@@ -798,7 +820,7 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		if (caps)
 		{
 			ret = gst_dvbaudiosink_set_caps(sink, caps);
-			//gst_caps_unref(caps);
+			gst_caps_unref(caps);
 			if (ret != TRUE)
 			{
 				//GST_ELEMENT_ERROR(self, STREAM, FORMAT,(NULL), ("Set caps failed. Stop render."));
