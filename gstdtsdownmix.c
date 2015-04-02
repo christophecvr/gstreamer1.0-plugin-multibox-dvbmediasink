@@ -41,43 +41,13 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include <gst/gst.h>
 #include <gst/audio/audio.h>
+#include <gst/base/gstbasesink.h>
 
-//#ifndef DTS_OLD
 #include <dca.h>
-/*#else
-#include <dts.h>
-
-typedef struct dts_state_s dca_state_t;
-#define DCA_MONO DTS_MONO
-#define DCA_CHANNEL DTS_CHANNEL
-#define DCA_STEREO DTS_STEREO
-#define DCA_STEREO_SUMDIFF DTS_STEREO_SUMDIFF
-#define DCA_STEREO_TOTAL DTS_STEREO_TOTAL
-#define DCA_3F DTS_3F
-#define DCA_2F1R DTS_2F1R
-#define DCA_3F1R DTS_3F1R
-#define DCA_2F2R DTS_2F2R
-#define DCA_3F2R DTS_3F2R
-#define DCA_4F2R DTS_4F2R
-#define DCA_DOLBY DTS_DOLBY
-#define DCA_CHANNEL_MAX DTS_CHANNEL_MAX
-#define DCA_CHANNEL_BITS DTS_CHANNEL_BITS
-#define DCA_CHANNEL_MASK DTS_CHANNEL_MASK
-#define DCA_LFE DTS_LFE
-#define DCA_ADJUST_LEVEL DTS_ADJUST_LEVEL
-
-#define dca_init dts_init
-#define dca_syncinfo dts_syncinfo
-#define dca_frame dts_frame
-#define dca_dynrng dts_dynrng
-#define dca_blocks_num dts_blocks_num
-#define dca_block dts_block
-#define dca_samples dts_samples
-#define dca_free dts_free
-#endif*/
 
 #include "gstdtsdownmix.h"
 
@@ -116,7 +86,7 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
-    GST_PAD_ALWAYS,
+    GST_PAD_SOMETIMES,
     GST_STATIC_CAPS ("audio/x-raw, "
         "format = (string) " SAMPLE_FORMAT ", "
         "layout = (string) interleaved, "
@@ -140,17 +110,20 @@ static void gst_dtsdec_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_dtsdec_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
+static gboolean gst_dtsdec_sink_event(GstAudioDecoder * dec , GstEvent * sink_event);
+static gboolean gst_dtsdec_src_event(GstAudioDecoder * dec , GstEvent * src_event);
+static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstStateChange transition);
+static GstElementClass *parent_class = NULL;
+static gboolean get_downmix_setting();
 
 static void
 gst_dtsdec_class_init (GstDtsDecClass * klass)
 {
-  GObjectClass *gobject_class;
-  GstElementClass *gstelement_class;
+  GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
+  GstElementClass *gstelement_class = GST_ELEMENT_CLASS(klass);
   GstAudioDecoderClass *gstbase_class;
   guint cpuflags;
 
-  gobject_class = (GObjectClass *) klass;
-  gstelement_class = (GstElementClass *) klass;
   gstbase_class = (GstAudioDecoderClass *) klass;
 
   gobject_class->set_property = gst_dtsdec_set_property;
@@ -166,11 +139,15 @@ gst_dtsdec_class_init (GstDtsDecClass * klass)
       "Jan Schmidt <thaytan@noraisin.net>, "
       "Ronald Bultje <rbultje@ronald.bitfreak.net>");
 
+//  gstelement_class->change_state = gst_dtsdec_change_state; Not in use yet
   gstbase_class->start = GST_DEBUG_FUNCPTR (gst_dtsdec_start);
   gstbase_class->stop = GST_DEBUG_FUNCPTR (gst_dtsdec_stop);
+  gstbase_class->src_event = GST_DEBUG_FUNCPTR(gst_dtsdec_src_event);
+//  gstbase_class->sink_event = GST_DEBUG_FUNCPTR(gst_dtsdec_sink_event); // does not work can't find why it blocks when it is used
   gstbase_class->set_format = GST_DEBUG_FUNCPTR (gst_dtsdec_set_format);
   gstbase_class->parse = GST_DEBUG_FUNCPTR (gst_dtsdec_parse);
   gstbase_class->handle_frame = GST_DEBUG_FUNCPTR (gst_dtsdec_handle_frame);
+  parent_class = g_type_class_peek_parent(klass);
 
   /**
    * GstDtsDec::drc
@@ -222,6 +199,7 @@ gst_dtsdec_start (GstAudioDecoder * dec)
 {
   GstDtsDec *dts = GST_DTSDEC (dec);
   GstDtsDecClass *klass;
+//  printf("STARTING DTSDEC\n");
 
   GST_DEBUG_OBJECT (dec, "start");
 
@@ -434,7 +412,7 @@ static void
 gst_dtsdec_update_streaminfo (GstDtsDec * dts)
 {
   GstTagList *taglist;
-
+//  printf("UPDATING STREAMINFO\n");
   if (dts->bit_rate > 3) {
     taglist = gst_tag_list_new_empty ();
     /* 1 => open bitrate, 2 => variable bitrate, 3 => lossless */
@@ -763,6 +741,122 @@ gst_dtsdec_get_property (GObject * object, guint prop_id, GValue * value,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+}
+
+static gboolean gst_dtsdec_sink_event(GstAudioDecoder * dec , GstEvent * sink_event)
+{
+	GstDtsDec *dts = GST_DTSDEC (dec);
+	GstDtsDecClass *klass;
+	gboolean ret = TRUE;
+	klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
+	GST_LOG_OBJECT(dts, "%s event", GST_EVENT_TYPE_NAME(sink_event));
+//	printf("A SINK EVENT name %s just occured\n", GST_EVENT_TYPE_NAME(sink_event));
+	switch (GST_EVENT_TYPE (sink_event))
+	{
+//		case GST_EVENT_TAG:
+//			gst_event_unref (sink_event);
+//			break;
+		default :
+			ret = TRUE;
+//			gst_event_unref (sink_event);
+			break;
+	}
+	gst_event_unref (sink_event);
+	return ret;
+}
+
+static gboolean gst_dtsdec_src_event(GstAudioDecoder * dec , GstEvent * src_event)
+{
+	GstDtsDec *dts = GST_DTSDEC (dec);
+	GstClockTime latency;
+	GstClockTime new_latency;
+	GstDtsDecClass *klass;
+	gboolean ret = TRUE;
+	GST_LOG_OBJECT(dts, "%s event", GST_EVENT_TYPE_NAME(src_event));
+	klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
+	switch (GST_EVENT_TYPE (src_event))
+	{
+		case GST_EVENT_LATENCY:
+		{
+			gst_event_parse_latency (src_event, &latency);
+			gst_event_copy (src_event);
+			latency = 1;
+			GstEvent * gst_event_new_latency (GstClockTime latency);
+		}
+			break;
+		default:
+			break;
+	}
+	gst_event_unref (src_event);
+	return ret;
+}
+
+static gboolean get_downmix_setting()
+{
+	FILE *f;
+	char buffer[32] = {0};
+	f = fopen("/proc/stb/audio/ac3", "r");
+	if (f)
+	{
+		fread(buffer, sizeof(buffer), 1, f);
+		fclose(f);
+	}
+	return !strncmp(buffer, "downmix", 7);
+}
+
+static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstStateChange transition)
+{
+	GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
+	GstDtsDec *dts = GST_DTSDEC(element);
+	printf("STATE CHANGE OCCURED TYPE = %d\n", transition);
+
+	switch (transition) 
+	{
+		case GST_STATE_CHANGE_NULL_TO_READY:
+			printf("STATE CHANGE OCCURED NULL_TO_READY = %d\n", transition);
+			dts->state = NULL;
+			if (!get_downmix_setting())
+			{
+				return GST_STATE_CHANGE_FAILURE;
+			}
+			else
+			{
+				;
+			}
+			break;
+		case GST_STATE_CHANGE_READY_TO_PAUSED:
+			printf("STATE CHANGE OCCURED READY_TO_PAUSED = %d\n", transition);
+			if (!get_downmix_setting())
+			{
+				return GST_STATE_CHANGE_FAILURE;
+			}
+			break;
+		case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+			printf("STATE CHANGE OCCURED PAUSED_TO_PLAYING = %d\n", transition);
+			break;
+		case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+			printf("STATE CHANGE OCCURED PLAYING_TO_PAUSED = %d\n", transition);
+			break;
+		case GST_STATE_CHANGE_PAUSED_TO_READY:
+			printf("STATE CHANGE OCCURED PAUSED_TO_READY = %d\n", transition);
+			break;
+		case GST_STATE_CHANGE_READY_TO_NULL:
+			printf("STATE CHANGE OCCURED READY_TO_NULL = %d\n", transition);
+			break;
+		default:
+			break;
+	}
+	ret = GST_ELEMENT_CLASS(parent_class)->change_state(element, transition);
+	switch (transition)
+	{
+		case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+			break;
+		case GST_STATE_CHANGE_PAUSED_TO_READY:
+			break;
+		case GST_STATE_CHANGE_READY_TO_NULL:
+			break;
+	}
+	return ret;
 }
 
 static gboolean
