@@ -143,7 +143,7 @@ gst_dtsdec_class_init (GstDtsDecClass * klass)
   gstbase_class->start = GST_DEBUG_FUNCPTR (gst_dtsdec_start);
   gstbase_class->stop = GST_DEBUG_FUNCPTR (gst_dtsdec_stop);
   gstbase_class->src_event = GST_DEBUG_FUNCPTR(gst_dtsdec_src_event);
-//  gstbase_class->sink_event = GST_DEBUG_FUNCPTR(gst_dtsdec_sink_event); // does not work can't find why it blocks when it is used
+  gstbase_class->sink_event = GST_DEBUG_FUNCPTR(gst_dtsdec_sink_event);
   gstbase_class->set_format = GST_DEBUG_FUNCPTR (gst_dtsdec_set_format);
   gstbase_class->parse = GST_DEBUG_FUNCPTR (gst_dtsdec_parse);
   gstbase_class->handle_frame = GST_DEBUG_FUNCPTR (gst_dtsdec_handle_frame);
@@ -661,7 +661,7 @@ gst_dtsdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         goto bad_first_access_parameter;
 
       subbuf = gst_buffer_copy_region (buf, GST_BUFFER_COPY_ALL, offset, len);
-      GST_BUFFER_TIMESTAMP (subbuf) = GST_CLOCK_TIME_NONE;
+      GST_BUFFER_DTS (subbuf) = GST_CLOCK_TIME_NONE;
       ret = dts->base_chain (pad, parent, subbuf);
       if (ret != GST_FLOW_OK) {
         gst_buffer_unref (buf);
@@ -673,7 +673,7 @@ gst_dtsdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
       if (len > 0) {
         subbuf = gst_buffer_copy_region (buf, GST_BUFFER_COPY_ALL, offset, len);
-        GST_BUFFER_TIMESTAMP (subbuf) = GST_BUFFER_TIMESTAMP (buf);
+        GST_BUFFER_DTS (subbuf) = GST_BUFFER_PTS (buf);
 
         ret = dts->base_chain (pad, parent, subbuf);
       }
@@ -683,7 +683,7 @@ gst_dtsdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       subbuf =
           gst_buffer_copy_region (buf, GST_BUFFER_COPY_ALL, offset,
           size - offset);
-      GST_BUFFER_TIMESTAMP (subbuf) = GST_BUFFER_TIMESTAMP (buf);
+      GST_BUFFER_DTS (subbuf) = GST_BUFFER_PTS (buf);
       ret = dts->base_chain (pad, parent, subbuf);
       gst_buffer_unref (buf);
     }
@@ -748,20 +748,19 @@ static gboolean gst_dtsdec_sink_event(GstAudioDecoder * dec , GstEvent * sink_ev
 	GstDtsDec *dts = GST_DTSDEC (dec);
 	GstDtsDecClass *klass;
 	gboolean ret = TRUE;
-	klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
 	GST_LOG_OBJECT(dts, "%s event", GST_EVENT_TYPE_NAME(sink_event));
+	klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
+	/* TO MONITOR EVENT PROCESS REMOVE THE COMMENTED(//) ON LINE BELOW */
 //	printf("A SINK EVENT name %s just occured\n", GST_EVENT_TYPE_NAME(sink_event));
 	switch (GST_EVENT_TYPE (sink_event))
 	{
-//		case GST_EVENT_TAG:
-//			gst_event_unref (sink_event);
-//			break;
+		case GST_EVENT_TAG:
+			ret = gst_pad_push_event (GST_AUDIO_DECODER_SRC_PAD (dts), sink_event);
+			break;
 		default :
-			ret = TRUE;
-//			gst_event_unref (sink_event);
+			ret = gst_pad_push_event (GST_AUDIO_DECODER_SRC_PAD (dts), sink_event);
 			break;
 	}
-	gst_event_unref (sink_event);
 	return ret;
 }
 
@@ -774,20 +773,20 @@ static gboolean gst_dtsdec_src_event(GstAudioDecoder * dec , GstEvent * src_even
 	gboolean ret = TRUE;
 	GST_LOG_OBJECT(dts, "%s event", GST_EVENT_TYPE_NAME(src_event));
 	klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
+	/* TO MONITOR EVENT PROCESS REMOVE THE COMMENTED(//) ON LINE BELOW */
+//	printf("A SRC EVENT NAME = <%s> JUST OCCORED\n", GST_EVENT_TYPE_NAME(src_event));
 	switch (GST_EVENT_TYPE (src_event))
 	{
 		case GST_EVENT_LATENCY:
 		{
 			gst_event_parse_latency (src_event, &latency);
-			gst_event_copy (src_event);
-			latency = 1;
-			GstEvent * gst_event_new_latency (GstClockTime latency);
+			ret = gst_pad_push_event (GST_AUDIO_DECODER_SINK_PAD (dts), src_event);
 		}
 			break;
 		default:
+			ret = gst_pad_push_event (GST_AUDIO_DECODER_SINK_PAD (dts), src_event);
 			break;
 	}
-	gst_event_unref (src_event);
 	return ret;
 }
 
@@ -808,7 +807,7 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 {
 	GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
 	GstDtsDec *dts = GST_DTSDEC(element);
-	printf("STATE CHANGE OCCURED TYPE = %d\n", transition);
+//	printf("STATE CHANGE OCCURED TYPE = %d\n", transition);
 
 	switch (transition) 
 	{
