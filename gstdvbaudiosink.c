@@ -267,26 +267,6 @@ static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
 	gint64 cur = 0;
 	if (self->fd < 0 || !self->playing || !self->pts_written) return GST_CLOCK_TIME_NONE;
 
-#ifdef DREAMBOX
-	if (self->pts_written)
-	{
-		ioctl(self->fd, AUDIO_GET_PTS, &cur);
-		if (cur)
-		{
-			self->lastpts = cur;
-		}
-		else
-		{
-			cur = self->lastpts;
-		}
-		cur *= 11111;
-		cur -= self->timestamp_offset;
-	}
-	else
-	{
-		cur = 0;
-	}
-#else
 	ioctl(self->fd, AUDIO_GET_PTS, &cur);
 	if (cur)
 	{
@@ -297,10 +277,8 @@ static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
 		cur = self->lastpts;
 	}
 	cur *= 11111;
-	cur -= self->timestamp_offset;
-#endif
 
-	return cur;
+	return cur - self->timestamp_offset;
 }
 
 static gboolean gst_dvbaudiosink_unlock(GstBaseSink *basesink)
@@ -783,13 +761,16 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		end = segment->stop;
 		pos = segment->position;
 
-		GST_DEBUG_OBJECT(self, "GST_EVENT_NEWSEGMENT rate=%f %d\n", rate, format);
-		
+		GST_DEBUG_OBJECT(self, "GST_EVENT_SEGMENT rate=%f %d\n", rate, format);
+
+//		printf("DO WE USE GST_EVENT_SEGMENT  rate = %f format = %d\n", rate, format);		
 		if (format == GST_FORMAT_TIME)
 		{
+//			printf("IS FORMAT AQUAL TO GST_FORMAT_TIME ?\n");
 			self->timestamp_offset = start - pos;
 			if (rate != self->rate)
 			{
+//				printf("IS FORMAT AQUAL TO GST_FORMAT_TIME ?\n");
 				int video_fd = open("/dev/dvb/adapter0/video0", O_RDWR);
 				if (video_fd >= 0)
 				{
@@ -819,20 +800,21 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		gst_event_parse_caps(event, &caps);
 		if (caps)
 		{
+//			printf("DO WE HAVE CAPS ?\n");
 			ret = gst_dvbaudiosink_set_caps(sink, caps);
-			gst_caps_unref(caps);
 			if (ret != TRUE)
 			{
+//				printf("DID WE SET CAPS ?\n");
 				//GST_ELEMENT_ERROR(self, STREAM, FORMAT,(NULL), ("Set caps failed. Stop render."));
 			}
 		}
+		break;
 	}
 
 	default:
 		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		break;
 	}
-
 	return ret;
 }
 
@@ -985,7 +967,7 @@ GstFlowReturn gst_dvbaudiosink_push_buffer(GstDVBAudioSink *self, GstBuffer *buf
 	 */
 	if (timestamp == GST_CLOCK_TIME_NONE)
 	{
-		timestamp = GST_BUFFER_PTS(buffer);
+		timestamp = GST_BUFFER_TIMESTAMP(buffer);
 		if (timestamp != GST_CLOCK_TIME_NONE && duration != GST_CLOCK_TIME_NONE)
 		{
 			self->timestamp = timestamp + duration;
@@ -999,7 +981,7 @@ GstFlowReturn gst_dvbaudiosink_push_buffer(GstDVBAudioSink *self, GstBuffer *buf
 		}
 		else
 		{
-			timestamp = GST_BUFFER_PTS(buffer);
+			timestamp = GST_BUFFER_TIMESTAMP(buffer);
 			self->timestamp = GST_CLOCK_TIME_NONE;
 		}
 	}
@@ -1157,7 +1139,7 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 	GstClockTime duration = GST_BUFFER_DURATION(buffer);
 	gsize buffersize;
 	buffersize = gst_buffer_get_size(buffer);
-	GstClockTime timestamp = GST_BUFFER_PTS(buffer);
+	GstClockTime timestamp = GST_BUFFER_TIMESTAMP(buffer);
 
 	if (self->bypass <= AUDIOTYPE_UNKNOWN)
 	{
@@ -1186,7 +1168,7 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 	{
 		GstBuffer *newbuffer;
 		newbuffer = gst_buffer_copy_region(buffer, GST_BUFFER_COPY_ALL, self->skip, buffersize - self->skip);
-		GST_BUFFER_PTS(newbuffer) = timestamp;
+		GST_BUFFER_TIMESTAMP(newbuffer) = timestamp;
 		GST_BUFFER_DURATION(newbuffer) = duration;
 		if (disposebuffer) gst_buffer_unref(disposebuffer);
 		buffer = disposebuffer = newbuffer;
@@ -1198,7 +1180,7 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 		/* join unrefs both buffers */
 		buffer = gst_buffer_append(self->cache, buffer);
 		buffersize = gst_buffer_get_size(buffer);
-		GST_BUFFER_PTS(buffer) = timestamp;
+		GST_BUFFER_TIMESTAMP(buffer) = timestamp;
 		GST_BUFFER_DURATION(buffer) = duration;
 		disposebuffer = buffer;
 		self->cache = NULL;
@@ -1225,7 +1207,7 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 					GstBuffer *block;
 					block = gst_buffer_copy_region(buffer, GST_BUFFER_COPY_ALL, index, self->fixed_buffersize);
 					/* only the first buffer needs the correct timestamp, next buffer timestamps will be ignored (and extrapolated) */
-					GST_BUFFER_PTS(block) = self->fixed_buffertimestamp;
+					GST_BUFFER_TIMESTAMP(block) = self->fixed_buffertimestamp;
 					GST_BUFFER_DURATION(block) = self->fixed_bufferduration;
 					self->fixed_buffertimestamp += self->fixed_bufferduration;
 					gst_dvbaudiosink_push_buffer(self, block);
