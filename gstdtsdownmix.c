@@ -139,7 +139,7 @@ gst_dtsdec_class_init (GstDtsDecClass * klass)
       "Jan Schmidt <thaytan@noraisin.net>, "
       "Ronald Bultje <rbultje@ronald.bitfreak.net>");
 
-//  gstelement_class->change_state = gst_dtsdec_change_state; Not in use yet
+  gstelement_class->change_state = gst_dtsdec_change_state;
   gstbase_class->start = GST_DEBUG_FUNCPTR (gst_dtsdec_start);
   gstbase_class->stop = GST_DEBUG_FUNCPTR (gst_dtsdec_stop);
   gstbase_class->src_event = GST_DEBUG_FUNCPTR(gst_dtsdec_src_event);
@@ -747,6 +747,7 @@ static gboolean gst_dtsdec_sink_event(GstAudioDecoder * dec , GstEvent * sink_ev
 {
 	GstDtsDec *dts = GST_DTSDEC (dec);
 	GstDtsDecClass *klass;
+	GstTagList *taglist;
 	gboolean ret = TRUE;
 	GST_LOG_OBJECT(dts, "%s event", GST_EVENT_TYPE_NAME(sink_event));
 	klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
@@ -755,10 +756,22 @@ static gboolean gst_dtsdec_sink_event(GstAudioDecoder * dec , GstEvent * sink_ev
 	switch (GST_EVENT_TYPE (sink_event))
 	{
 		case GST_EVENT_TAG:
-			ret = gst_pad_push_event (GST_AUDIO_DECODER_SRC_PAD (dts), sink_event);
+			gst_event_parse_tag(sink_event, &taglist);
+			if (GST_AUDIO_DECODER_SRC_PAD(dts))
+			{
+				gst_audio_decoder_merge_tags(dec, taglist, GST_TAG_MERGE_REPLACE);
+				ret = gst_pad_push_event(GST_AUDIO_DECODER_SRC_PAD(dts), sink_event);
+			}
+			else
+			{
+				gst_audio_decoder_merge_tags(dec, taglist, GST_TAG_MERGE_KEEP_ALL);
+			}
 			break;
 		default :
-			ret = gst_pad_push_event (GST_AUDIO_DECODER_SRC_PAD (dts), sink_event);
+			if (GST_AUDIO_DECODER_SRC_PAD(dts))
+			{
+				ret = gst_pad_push_event(GST_AUDIO_DECODER_SRC_PAD(dts), sink_event);
+			}
 			break;
 	}
 	return ret;
@@ -778,13 +791,17 @@ static gboolean gst_dtsdec_src_event(GstAudioDecoder * dec , GstEvent * src_even
 	switch (GST_EVENT_TYPE (src_event))
 	{
 		case GST_EVENT_LATENCY:
-		{
-			gst_event_parse_latency (src_event, &latency);
-			ret = gst_pad_push_event (GST_AUDIO_DECODER_SINK_PAD (dts), src_event);
-		}
+			if (GST_AUDIO_DECODER_SINK_PAD(dts))
+			{
+				//ret = gst_pad_push_event (GST_AUDIO_DECODER_SINK_PAD (dts), src_event);
+				gst_event_unref(src_event);
+			}
 			break;
 		default:
-			ret = gst_pad_push_event (GST_AUDIO_DECODER_SINK_PAD (dts), src_event);
+			if (GST_AUDIO_DECODER_SINK_PAD(dts))
+			{
+				ret = gst_pad_push_event(GST_AUDIO_DECODER_SINK_PAD (dts), src_event);
+			}
 			break;
 	}
 	return ret;
