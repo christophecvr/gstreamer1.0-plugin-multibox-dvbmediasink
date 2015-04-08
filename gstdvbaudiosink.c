@@ -142,7 +142,7 @@ static guint gst_dvbaudiosink_signals[LAST_SIGNAL] = { 0 };
 		"rate = (int) {8000, 16000}, channels = (int) 1; "
 
 #define XRAW "audio/x-raw"
-#ifdef DREAMBOX
+#if defined(DREAMBOX) || defined(MAX_PCMRATE_48K)
 #define PCMCAPS \
 		"audio/x-raw, " \
 		"format = (string) { "GST_AUDIO_NE(S32)", "GST_AUDIO_NE(S24)", "GST_AUDIO_NE(S16)", S8, "GST_AUDIO_NE(U32)", "GST_AUDIO_NE(U24)", "GST_AUDIO_NE(U16)", U8 }, " \
@@ -771,14 +771,11 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 
 		GST_DEBUG_OBJECT(self, "GST_EVENT_SEGMENT rate=%f %d\n", rate, format);
 
-//		printf("DO WE USE GST_EVENT_SEGMENT  rate = %f format = %d\n", rate, format);		
 		if (format == GST_FORMAT_TIME)
 		{
-//			printf("IS FORMAT AQUAL TO GST_FORMAT_TIME ?\n");
 			self->timestamp_offset = start - pos;
 			if (rate != self->rate)
 			{
-//				printf("IS FORMAT AQUAL TO GST_FORMAT_TIME ?\n");
 				int video_fd = open("/dev/dvb/adapter0/video0", O_RDWR);
 				if (video_fd >= 0)
 				{
@@ -808,11 +805,9 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		gst_event_parse_caps(event, &caps);
 		if (caps)
 		{
-//			printf("DO WE HAVE CAPS ?\n");
 			ret = gst_dvbaudiosink_set_caps(sink, caps);
 			if (ret != TRUE)
 			{
-//				printf("DID WE SET CAPS ?\n");
 				//GST_ELEMENT_ERROR(self, STREAM, FORMAT,(NULL), ("Set caps failed. Stop render."));
 			}
 		}

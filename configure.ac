@@ -235,6 +235,13 @@ if test "$dreambox" = "yes"; then
 	AC_DEFINE([DREAMBOX],[1],[build for dreambox, yes or no ])
 fi
 
+AC_ARG_WITH(max_pcmrate_48K,
+	AS_HELP_STRING([--with-max-pcmrate-48K],[Max PCM rate 48K, yes or no]),
+	[max_pcmrate_48K=$withval],[max_pcmrate_48K=no])
+if test "$max_pcmrate_48K" = "yes"; then
+	AC_DEFINE([MAX_PCMRATE_48K],[1],[Max PCM rate 48K, yes or no ])
+fi
+
 AC_ARG_WITH(dags,
 	AS_HELP_STRING([--with-dags],[build for dags, yes or no]),
 	[dags=$withval],[dags=no])

@@ -199,9 +199,8 @@ gst_dtsdec_start (GstAudioDecoder * dec)
 {
   GstDtsDec *dts = GST_DTSDEC (dec);
   GstDtsDecClass *klass;
-//  printf("STARTING DTSDEC\n");
 
-  GST_DEBUG_OBJECT (dec, "start");
+  GST_DEBUG_OBJECT (dec, "START");
 
   klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
   dts->state = dca_init (klass->dts_cpuflags);
@@ -412,7 +411,7 @@ static void
 gst_dtsdec_update_streaminfo (GstDtsDec * dts)
 {
   GstTagList *taglist;
-//  printf("UPDATING STREAMINFO\n");
+  GST_INFO_OBJECT(dts, "UPDATING STREAMINFO");
   if (dts->bit_rate > 3) {
     taglist = gst_tag_list_new_empty ();
     /* 1 => open bitrate, 2 => variable bitrate, 3 => lossless */
@@ -749,10 +748,8 @@ static gboolean gst_dtsdec_sink_event(GstAudioDecoder * dec , GstEvent * sink_ev
 	GstDtsDecClass *klass;
 	GstTagList *taglist;
 	gboolean ret = TRUE;
-	GST_LOG_OBJECT(dts, "%s event", GST_EVENT_TYPE_NAME(sink_event));
+	GST_INFO_OBJECT(dts, "SINK EVENT %s", GST_EVENT_TYPE_NAME(sink_event));
 	klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
-	/* TO MONITOR EVENT PROCESS REMOVE THE COMMENTED(//) ON LINE BELOW */
-//	printf("A SINK EVENT name %s just occured\n", GST_EVENT_TYPE_NAME(sink_event));
 	switch (GST_EVENT_TYPE (sink_event))
 	{
 		case GST_EVENT_TAG:
@@ -784,17 +781,14 @@ static gboolean gst_dtsdec_src_event(GstAudioDecoder * dec , GstEvent * src_even
 	GstClockTime new_latency;
 	GstDtsDecClass *klass;
 	gboolean ret = TRUE;
-	GST_LOG_OBJECT(dts, "%s event", GST_EVENT_TYPE_NAME(src_event));
+	GST_INFO_OBJECT(dts, "SRC EVENT %s", GST_EVENT_TYPE_NAME(src_event));
 	klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
-	/* TO MONITOR EVENT PROCESS REMOVE THE COMMENTED(//) ON LINE BELOW */
-//	printf("A SRC EVENT NAME = <%s> JUST OCCORED\n", GST_EVENT_TYPE_NAME(src_event));
 	switch (GST_EVENT_TYPE (src_event))
 	{
 		case GST_EVENT_LATENCY:
 			if (GST_AUDIO_DECODER_SINK_PAD(dts))
 			{
-				//ret = gst_pad_push_event (GST_AUDIO_DECODER_SINK_PAD (dts), src_event);
-				gst_event_unref(src_event);
+				ret = gst_pad_push_event (GST_AUDIO_DECODER_SINK_PAD (dts), src_event);
 			}
 			break;
 		default:
@@ -824,12 +818,11 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 {
 	GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
 	GstDtsDec *dts = GST_DTSDEC(element);
-//	printf("STATE CHANGE OCCURED TYPE = %d\n", transition);
 
 	switch (transition) 
 	{
 		case GST_STATE_CHANGE_NULL_TO_READY:
-			printf("STATE CHANGE OCCURED NULL_TO_READY = %d\n", transition);
+			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_NULL_TO_READY Nr %d", transition);
 			dts->state = NULL;
 			if (!get_downmix_setting())
 			{
@@ -841,23 +834,23 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 			}
 			break;
 		case GST_STATE_CHANGE_READY_TO_PAUSED:
-			printf("STATE CHANGE OCCURED READY_TO_PAUSED = %d\n", transition);
+			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_READY_TO_PAUSED Nr %d", transition);
 			if (!get_downmix_setting())
 			{
 				return GST_STATE_CHANGE_FAILURE;
 			}
 			break;
 		case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-			printf("STATE CHANGE OCCURED PAUSED_TO_PLAYING = %d\n", transition);
+			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PAUSED_TO_PLAYING Nr %d", transition);
 			break;
 		case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-			printf("STATE CHANGE OCCURED PLAYING_TO_PAUSED = %d\n", transition);
+			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PLAYING_TO_PAUSED Nr %d", transition);
 			break;
 		case GST_STATE_CHANGE_PAUSED_TO_READY:
-			printf("STATE CHANGE OCCURED PAUSED_TO_READY = %d\n", transition);
+			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PAUSED_TO_READY Nr %d", transition);
 			break;
 		case GST_STATE_CHANGE_READY_TO_NULL:
-			printf("STATE CHANGE OCCURED READY_TO_NULL = %d\n", transition);
+			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_READY_TO_NULL Nr %d", transition);
 			break;
 		default:
 			break;
@@ -866,10 +859,13 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 	switch (transition)
 	{
 		case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+			GST_INFO_OBJECT(dts, "2 GST_STATE_CHANGE_PLAYING_TO_PAUSED Nr %d", transition);
 			break;
 		case GST_STATE_CHANGE_PAUSED_TO_READY:
+			GST_INFO_OBJECT(dts, "2 GST_STATE_CHANGE_PAUSED_TO_READY Nr %d", transition);
 			break;
 		case GST_STATE_CHANGE_READY_TO_NULL:
+			GST_INFO_OBJECT(dts, "2 GST_STATE_CHANGE_READY_TO_NULL Nr %d", transition);
 			break;
 	}
 	return ret;

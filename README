@@ -15,6 +15,8 @@ How to use :
 For dreambox machines (dm8000 and dm800se) add --with-dreambox to DVBMEDIASINK_CONFIG.
 For vuplus machines add --with-vuplus .
 For dags machines add --with-dags.
+Some xtrend boxes need a max pcm rate off 48000.
+For those boxes add --with-max-pcmrate-48K
 
 Examples configs :
 
