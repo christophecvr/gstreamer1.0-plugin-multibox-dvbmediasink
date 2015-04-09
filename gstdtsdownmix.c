@@ -661,6 +661,7 @@ gst_dtsdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
       subbuf = gst_buffer_copy_region (buf, GST_BUFFER_COPY_ALL, offset, len);
       GST_BUFFER_DTS (subbuf) = GST_CLOCK_TIME_NONE;
+	  GST_BUFFER_PTS (subbuf) = GST_CLOCK_TIME_NONE;
       ret = dts->base_chain (pad, parent, subbuf);
       if (ret != GST_FLOW_OK) {
         gst_buffer_unref (buf);
@@ -672,7 +673,8 @@ gst_dtsdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
       if (len > 0) {
         subbuf = gst_buffer_copy_region (buf, GST_BUFFER_COPY_ALL, offset, len);
-        GST_BUFFER_DTS (subbuf) = GST_BUFFER_PTS (buf);
+        GST_BUFFER_DTS (subbuf) = GST_BUFFER_DTS (buf);
+        GST_BUFFER_PTS (subbuf) = GST_BUFFER_PTS (buf);
 
         ret = dts->base_chain (pad, parent, subbuf);
       }
@@ -682,7 +684,8 @@ gst_dtsdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       subbuf =
           gst_buffer_copy_region (buf, GST_BUFFER_COPY_ALL, offset,
           size - offset);
-      GST_BUFFER_DTS (subbuf) = GST_BUFFER_PTS (buf);
+      GST_BUFFER_DTS (subbuf) = GST_BUFFER_DTS (buf);
+      GST_BUFFER_PTS (subbuf) = GST_BUFFER_PTS (buf);
       ret = dts->base_chain (pad, parent, subbuf);
       gst_buffer_unref (buf);
     }
