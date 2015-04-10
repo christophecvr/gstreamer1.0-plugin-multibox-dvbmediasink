@@ -358,7 +358,26 @@ static gint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
 {
 	gint64 cur = 0;
 	if (self->fd < 0 || !self->playing || !self->pts_written) return GST_CLOCK_TIME_NONE;
-
+#ifdef DREAMBOX
+	if (self->pts_written)
+	{
+		ioctl(self->fd, VIDEO_GET_PTS, &cur);
+		if (cur)
+		{
+			self->lastpts = cur;
+		}
+		else
+		{
+			cur = self->lastpts;
+		}
+		cur *= 11111;
+		cur -= self->timestamp_offset;
+	}
+	else
+	{
+		cur = 0;
+	}
+#else
 	ioctl(self->fd, VIDEO_GET_PTS, &cur);
 	if (cur)
 	{
@@ -369,7 +388,9 @@ static gint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
 		cur = self->lastpts;
 	}
 	cur *= 11111;
-	return cur - self->timestamp_offset;
+	cur -= self->timestamp_offset;
+#endif
+	return cur;
 }
 
 static gboolean gst_dvbvideosink_unlock(GstBaseSink *basesink)
@@ -1934,6 +1955,7 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
  */
 static gboolean plugin_init (GstPlugin *plugin)
 {
+	gst_debug_set_colored(GST_DEBUG_COLOR_MODE_OFF);
 	return gst_element_register (plugin, "dvbvideosink",
 						 GST_RANK_PRIMARY,
 						 GST_TYPE_DVBVIDEOSINK);

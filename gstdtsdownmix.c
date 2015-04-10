@@ -86,11 +86,11 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
-    GST_PAD_SOMETIMES,
+    GST_PAD_ALWAYS,
     GST_STATIC_CAPS ("audio/x-raw, "
         "format = (string) " SAMPLE_FORMAT ", "
         "layout = (string) interleaved, "
-        "rate = (int) [ 4000, 96000 ], " "channels = (int) [ 1, 2 ]")
+        "rate = (int) [ 4000, 48000 ], " "channels = (int) [ 1, 2 ]")
     );
 
 G_DEFINE_TYPE (GstDtsDec, gst_dtsdec, GST_TYPE_AUDIO_DECODER);
@@ -660,8 +660,7 @@ gst_dtsdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         goto bad_first_access_parameter;
 
       subbuf = gst_buffer_copy_region (buf, GST_BUFFER_COPY_ALL, offset, len);
-      GST_BUFFER_DTS (subbuf) = GST_CLOCK_TIME_NONE;
-	  GST_BUFFER_PTS (subbuf) = GST_CLOCK_TIME_NONE;
+	  GST_BUFFER_TIMESTAMP (subbuf) = GST_CLOCK_TIME_NONE;
       ret = dts->base_chain (pad, parent, subbuf);
       if (ret != GST_FLOW_OK) {
         gst_buffer_unref (buf);
@@ -673,8 +672,7 @@ gst_dtsdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
       if (len > 0) {
         subbuf = gst_buffer_copy_region (buf, GST_BUFFER_COPY_ALL, offset, len);
-        GST_BUFFER_DTS (subbuf) = GST_BUFFER_DTS (buf);
-        GST_BUFFER_PTS (subbuf) = GST_BUFFER_PTS (buf);
+        GST_BUFFER_TIMESTAMP (subbuf) = GST_BUFFER_TIMESTAMP (buf);
 
         ret = dts->base_chain (pad, parent, subbuf);
       }
@@ -684,8 +682,7 @@ gst_dtsdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       subbuf =
           gst_buffer_copy_region (buf, GST_BUFFER_COPY_ALL, offset,
           size - offset);
-      GST_BUFFER_DTS (subbuf) = GST_BUFFER_DTS (buf);
-      GST_BUFFER_PTS (subbuf) = GST_BUFFER_PTS (buf);
+      GST_BUFFER_TIMESTAMP (subbuf) = GST_BUFFER_TIMESTAMP (buf);
       ret = dts->base_chain (pad, parent, subbuf);
       gst_buffer_unref (buf);
     }
@@ -759,8 +756,8 @@ static gboolean gst_dtsdec_sink_event(GstAudioDecoder * dec , GstEvent * sink_ev
 			gst_event_parse_tag(sink_event, &taglist);
 			if (GST_AUDIO_DECODER_SRC_PAD(dts))
 			{
-				gst_audio_decoder_merge_tags(dec, taglist, GST_TAG_MERGE_REPLACE);
 				ret = gst_pad_push_event(GST_AUDIO_DECODER_SRC_PAD(dts), sink_event);
+				gst_audio_decoder_merge_tags(dec, taglist, GST_TAG_MERGE_REPLACE);
 			}
 			else
 			{
@@ -781,7 +778,6 @@ static gboolean gst_dtsdec_src_event(GstAudioDecoder * dec , GstEvent * src_even
 {
 	GstDtsDec *dts = GST_DTSDEC (dec);
 	GstClockTime latency;
-	GstClockTime new_latency;
 	GstDtsDecClass *klass;
 	gboolean ret = TRUE;
 	GST_INFO_OBJECT(dts, "SRC EVENT %s", GST_EVENT_TYPE_NAME(src_event));
@@ -791,7 +787,8 @@ static gboolean gst_dtsdec_src_event(GstAudioDecoder * dec , GstEvent * src_even
 		case GST_EVENT_LATENCY:
 			if (GST_AUDIO_DECODER_SINK_PAD(dts))
 			{
-				ret = gst_pad_push_event (GST_AUDIO_DECODER_SINK_PAD (dts), src_event);
+				ret = TRUE;
+				GST_INFO_OBJECT(dts, "ACTION ON SRC EVENT %s ret = %d", GST_EVENT_TYPE_NAME(src_event), ret);
 			}
 			break;
 		default:
@@ -877,6 +874,7 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
+  gst_debug_set_colored(GST_DEBUG_COLOR_MODE_OFF);
   GST_DEBUG_CATEGORY_INIT (dtsdownmix_debug, "dtsdownmix", 0, "DTS/DCA audio decoder");
 
 #if HAVE_ORC

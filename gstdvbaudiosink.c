@@ -77,6 +77,7 @@
 #include <gst/gst.h>
 #include <gst/audio/audio.h>
 #include <gst/base/gstbasesink.h>
+#include <gst/audio/gstaudiodecoder.h>
 
 #include "common.h"
 #include "gstdvbaudiosink.h"
@@ -275,6 +276,26 @@ static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
 	gint64 cur = 0;
 	if (self->fd < 0 || !self->playing || !self->pts_written) return GST_CLOCK_TIME_NONE;
 
+#ifdef DREAMBOX
+	if (self->pts_written)
+	{
+		ioctl(self->fd, AUDIO_GET_PTS, &cur);
+		if (cur)
+		{
+			self->lastpts = cur;
+		}
+		else
+		{
+			cur = self->lastpts;
+		}
+		cur *= 11111;
+		cur -= self->timestamp_offset;
+	}
+	else
+	{
+		cur = 0;
+	}
+#else
 	ioctl(self->fd, AUDIO_GET_PTS, &cur);
 	if (cur)
 	{
@@ -285,8 +306,9 @@ static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
 		cur = self->lastpts;
 	}
 	cur *= 11111;
-
-	return cur - self->timestamp_offset;
+	cur -= self->timestamp_offset;
+#endif
+	return cur;
 }
 
 static gboolean gst_dvbaudiosink_unlock(GstBaseSink *basesink)
@@ -799,7 +821,7 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		}
 		break;
 	}
-	case GST_EVENT_CAPS:
+ 	case GST_EVENT_CAPS:
 	{
 		GstCaps *caps;
 		gst_event_parse_caps(event, &caps);
@@ -971,7 +993,6 @@ GstFlowReturn gst_dvbaudiosink_push_buffer(GstDVBAudioSink *self, GstBuffer *buf
 	if (timestamp == GST_CLOCK_TIME_NONE)
 	{
 		timestamp = GST_BUFFER_PTS(buffer);
-		GST_BUFFER_DTS(buffer) = GST_BUFFER_PTS(buffer);
 		if (timestamp != GST_CLOCK_TIME_NONE && duration != GST_CLOCK_TIME_NONE)
 		{
 			self->timestamp = timestamp + duration;
@@ -986,7 +1007,6 @@ GstFlowReturn gst_dvbaudiosink_push_buffer(GstDVBAudioSink *self, GstBuffer *buf
 		else
 		{
 			timestamp = GST_BUFFER_PTS(buffer);
-			GST_BUFFER_DTS(buffer) = GST_BUFFER_PTS(buffer);
 			self->timestamp = GST_CLOCK_TIME_NONE;
 		}
 	}
@@ -1145,7 +1165,6 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 	gsize buffersize;
 	buffersize = gst_buffer_get_size(buffer);
 	GstClockTime timestamp = GST_BUFFER_PTS(buffer);
-	GST_BUFFER_DTS(buffer) = GST_BUFFER_PTS(buffer);
 
 	if (self->bypass <= AUDIOTYPE_UNKNOWN)
 	{
@@ -1175,7 +1194,6 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 		GstBuffer *newbuffer;
 		newbuffer = gst_buffer_copy_region(buffer, GST_BUFFER_COPY_ALL, self->skip, buffersize - self->skip);
 		GST_BUFFER_PTS(newbuffer) = timestamp;
-        GST_BUFFER_DTS(newbuffer) = timestamp;
 		GST_BUFFER_DURATION(newbuffer) = duration;
 		if (disposebuffer) gst_buffer_unref(disposebuffer);
 		buffer = disposebuffer = newbuffer;
@@ -1188,7 +1206,6 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 		buffer = gst_buffer_append(self->cache, buffer);
 		buffersize = gst_buffer_get_size(buffer);
 		GST_BUFFER_PTS(buffer) = timestamp;
-		GST_BUFFER_DTS(buffer) = timestamp;
 		GST_BUFFER_DURATION(buffer) = duration;
 		disposebuffer = buffer;
 		self->cache = NULL;
@@ -1216,7 +1233,6 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 					block = gst_buffer_copy_region(buffer, GST_BUFFER_COPY_ALL, index, self->fixed_buffersize);
 					/* only the first buffer needs the correct timestamp, next buffer timestamps will be ignored (and extrapolated) */
 					GST_BUFFER_PTS(block) = self->fixed_buffertimestamp;
-					GST_BUFFER_DTS(block) = self->fixed_buffertimestamp;
 					GST_BUFFER_DURATION(block) = self->fixed_bufferduration;
 					self->fixed_buffertimestamp += self->fixed_bufferduration;
 					gst_dvbaudiosink_push_buffer(self, block);
@@ -1416,6 +1432,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
  */
 static gboolean plugin_init(GstPlugin *plugin)
 {
+	gst_debug_set_colored(GST_DEBUG_COLOR_MODE_OFF);
 	return gst_element_register(plugin, "dvbaudiosink",
 						 GST_RANK_PRIMARY + 1,
 						 GST_TYPE_DVBAUDIOSINK);
