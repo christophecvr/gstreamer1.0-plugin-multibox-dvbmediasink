@@ -276,26 +276,6 @@ static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
 	gint64 cur = 0;
 	if (self->fd < 0 || !self->playing || !self->pts_written) return GST_CLOCK_TIME_NONE;
 
-#ifdef DREAMBOX
-	if (self->pts_written)
-	{
-		ioctl(self->fd, AUDIO_GET_PTS, &cur);
-		if (cur)
-		{
-			self->lastpts = cur;
-		}
-		else
-		{
-			cur = self->lastpts;
-		}
-		cur *= 11111;
-		cur -= self->timestamp_offset;
-	}
-	else
-	{
-		cur = 0;
-	}
-#else
 	ioctl(self->fd, AUDIO_GET_PTS, &cur);
 	if (cur)
 	{
@@ -306,9 +286,8 @@ static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
 		cur = self->lastpts;
 	}
 	cur *= 11111;
-	cur -= self->timestamp_offset;
-#endif
-	return cur;
+
+	return cur - self->timestamp_offset;
 }
 
 static gboolean gst_dvbaudiosink_unlock(GstBaseSink *basesink)
@@ -1392,7 +1371,13 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 		GST_DEBUG_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
-		if (self->fd >= 0) ioctl(self->fd, AUDIO_CONTINUE);
+		if (self->fd >= 0) {ioctl(self->fd, AUDIO_CONTINUE);}
+#ifdef DREAMBOX
+		if (get_downmix_setting())
+		{
+			self->playing = TRUE;
+		}
+#endif
 		self->paused = FALSE;
 		break;
 	default:

@@ -185,6 +185,7 @@ gst_dtsdec_init (GstDtsDec * dtsdec)
 {
   dtsdec->request_channels = DCA_CHANNEL;
   dtsdec->dynamic_range_compression = FALSE;
+  GST_INFO("DTSDEC_INIT");
 
   /* retrieve and intercept base class chain.
    * Quite HACKish, but that's dvd specs for you,
@@ -197,11 +198,16 @@ gst_dtsdec_init (GstDtsDec * dtsdec)
 static gboolean
 gst_dtsdec_start (GstAudioDecoder * dec)
 {
+  gst_audio_decoder_set_drainable(dec, TRUE);
   GstDtsDec *dts = GST_DTSDEC (dec);
   GstDtsDecClass *klass;
-
-  GST_DEBUG_OBJECT (dec, "START");
-
+  
+  if(!dts->start_ok) 
+  {
+    GST_INFO_OBJECT (dec, "START FAILED");
+	return FALSE;
+  }
+  GST_INFO_OBJECT (dec, "START");
   klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
   dts->state = dca_init (klass->dts_cpuflags);
   dts->samples = dca_samples (dts->state);
@@ -215,7 +221,6 @@ gst_dtsdec_start (GstAudioDecoder * dec)
 
   /* call upon legacy upstream byte support (e.g. seeking) */
   gst_audio_decoder_set_estimate_rate (dec, TRUE);
-
   return TRUE;
 }
 
@@ -224,7 +229,7 @@ gst_dtsdec_stop (GstAudioDecoder * dec)
 {
   GstDtsDec *dts = GST_DTSDEC (dec);
 
-  GST_DEBUG_OBJECT (dec, "stop");
+  GST_INFO_OBJECT (dec, "stop");
 
   dts->samples = NULL;
   if (dts->state) {
@@ -260,6 +265,7 @@ gst_dtsdec_parse (GstAudioDecoder * bdec, GstAdapter * adapter,
 
     if (length == 0) {
       /* shift window to re-find sync */
+	  GST_INFO_OBJECT (dts, "OUT OF SYNC LENGHT = %d", length);
       data++;
       size--;
     } else if (length <= size) {
@@ -267,7 +273,7 @@ gst_dtsdec_parse (GstAudioDecoder * bdec, GstAdapter * adapter,
       result = GST_FLOW_OK;
       break;
     } else {
-      GST_LOG_OBJECT (dts, "Not enough data available (needed %d had %d)",
+      GST_INFO_OBJECT (dts, "Not enough data available (needed %d had %d)",
           length, size);
       break;
     }
@@ -641,6 +647,7 @@ gst_dtsdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     gsize size;
     gint offset, len;
     GstBuffer *subbuf;
+	GST_INFO("DTS-DVD-MODE");
 
     size = gst_buffer_get_size (buf);
     if (size < 2)
@@ -660,7 +667,9 @@ gst_dtsdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         goto bad_first_access_parameter;
 
       subbuf = gst_buffer_copy_region (buf, GST_BUFFER_COPY_ALL, offset, len);
-	  GST_BUFFER_TIMESTAMP (subbuf) = GST_CLOCK_TIME_NONE;
+	  GST_BUFFER_PTS (subbuf) = GST_CLOCK_TIME_NONE;
+	  GST_BUFFER_PTS (subbuf) = GST_CLOCK_TIME_NONE;
+
       ret = dts->base_chain (pad, parent, subbuf);
       if (ret != GST_FLOW_OK) {
         gst_buffer_unref (buf);
@@ -672,7 +681,8 @@ gst_dtsdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
       if (len > 0) {
         subbuf = gst_buffer_copy_region (buf, GST_BUFFER_COPY_ALL, offset, len);
-        GST_BUFFER_TIMESTAMP (subbuf) = GST_BUFFER_TIMESTAMP (buf);
+        GST_BUFFER_PTS (subbuf) = GST_BUFFER_PTS (buf);
+		GST_BUFFER_DTS (subbuf) = GST_BUFFER_DTS (buf);
 
         ret = dts->base_chain (pad, parent, subbuf);
       }
@@ -682,7 +692,8 @@ gst_dtsdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       subbuf =
           gst_buffer_copy_region (buf, GST_BUFFER_COPY_ALL, offset,
           size - offset);
-      GST_BUFFER_TIMESTAMP (subbuf) = GST_BUFFER_TIMESTAMP (buf);
+      GST_BUFFER_DTS (subbuf) = GST_BUFFER_DTS (buf);
+	  GST_BUFFER_PTS (subbuf) = GST_BUFFER_PTS (buf);
       ret = dts->base_chain (pad, parent, subbuf);
       gst_buffer_unref (buf);
     }
@@ -748,10 +759,55 @@ static gboolean gst_dtsdec_sink_event(GstAudioDecoder * dec , GstEvent * sink_ev
 	GstDtsDecClass *klass;
 	GstTagList *taglist;
 	gboolean ret = TRUE;
+	gboolean test = TRUE;
 	GST_INFO_OBJECT(dts, "SINK EVENT %s", GST_EVENT_TYPE_NAME(sink_event));
 	klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
 	switch (GST_EVENT_TYPE (sink_event))
 	{
+		case GST_EVENT_SEGMENT:
+		{
+			GstFormat format;
+			gdouble rate;
+			const GstSegment *segment;
+			GstSegment *new_segment;
+			gint64 start, end, pos;
+			gst_event_parse_segment(sink_event, &segment);
+			format = segment->format;
+			start  = segment->start;
+			end    = segment->stop;
+			pos    = segment->position;
+			rate   = segment->rate;
+			if (format != GST_FORMAT_TIME || !GST_CLOCK_TIME_IS_VALID (start)) 
+			{
+				//gst_event_new_segment (segment);
+				GST_WARNING ("No time in newsegment event %p (format is %s)",
+						sink_event, gst_format_get_name (format));
+				/* set some dummy values, FIXME: do proper conversion */
+				gst_event_copy_segment(sink_event, new_segment);
+				gst_event_unref (sink_event);
+				new_segment->format = GST_FORMAT_TIME;
+				new_segment->start = 0;
+				new_segment->stop = -1;
+				new_segment->position = 0;
+				new_segment->rate = rate;
+				test = gst_segment_set_running_time(new_segment, new_segment->format, new_segment->position);
+				gst_event_new_segment(new_segment);
+				if (GST_AUDIO_DECODER_SRC_PAD(dts))
+				{
+					GST_INFO_OBJECT(dts, "PUSHING NEW SEGMENT %s", GST_EVENT_TYPE_NAME(sink_event));
+					ret = gst_pad_push_event(GST_AUDIO_DECODER_SRC_PAD(dts), sink_event);
+				}
+			} 
+			else 
+			{
+				if (GST_AUDIO_DECODER_SRC_PAD(dts))
+				{
+					GST_INFO_OBJECT(dts, "PUSHING SEGMENT IT IS OK %s", GST_EVENT_TYPE_NAME(sink_event));
+					ret = gst_pad_push_event(GST_AUDIO_DECODER_SRC_PAD(dts), sink_event);
+				}
+			}
+			break;
+		}
 		case GST_EVENT_TAG:
 			gst_event_parse_tag(sink_event, &taglist);
 			if (GST_AUDIO_DECODER_SRC_PAD(dts))
@@ -818,6 +874,8 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 {
 	GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
 	GstDtsDec *dts = GST_DTSDEC(element);
+	GstDtsDecClass *klass;
+	klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
 
 	switch (transition) 
 	{
@@ -830,14 +888,19 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 			}
 			else
 			{
-				;
+				dts->start_ok = 0;
 			}
 			break;
 		case GST_STATE_CHANGE_READY_TO_PAUSED:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_READY_TO_PAUSED Nr %d", transition);
 			if (!get_downmix_setting())
 			{
+				dts->start_ok = 0;
 				return GST_STATE_CHANGE_FAILURE;
+			}
+			else
+			{
+				dts->start_ok = 1;
 			}
 			break;
 		case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
@@ -856,18 +919,6 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 			break;
 	}
 	ret = GST_ELEMENT_CLASS(parent_class)->change_state(element, transition);
-	switch (transition)
-	{
-		case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-			GST_INFO_OBJECT(dts, "2 GST_STATE_CHANGE_PLAYING_TO_PAUSED Nr %d", transition);
-			break;
-		case GST_STATE_CHANGE_PAUSED_TO_READY:
-			GST_INFO_OBJECT(dts, "2 GST_STATE_CHANGE_PAUSED_TO_READY Nr %d", transition);
-			break;
-		case GST_STATE_CHANGE_READY_TO_NULL:
-			GST_INFO_OBJECT(dts, "2 GST_STATE_CHANGE_READY_TO_NULL Nr %d", transition);
-			break;
-	}
 	return ret;
 }
 
