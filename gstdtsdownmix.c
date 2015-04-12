@@ -202,11 +202,6 @@ gst_dtsdec_start (GstAudioDecoder * dec)
   GstDtsDec *dts = GST_DTSDEC (dec);
   GstDtsDecClass *klass;
   
-  if(!dts->start_ok) 
-  {
-    GST_INFO_OBJECT (dec, "START FAILED");
-	return FALSE;
-  }
   GST_INFO_OBJECT (dec, "START");
   klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
   dts->state = dca_init (klass->dts_cpuflags);
@@ -886,21 +881,12 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 			{
 				return GST_STATE_CHANGE_FAILURE;
 			}
-			else
-			{
-				dts->start_ok = 0;
-			}
 			break;
 		case GST_STATE_CHANGE_READY_TO_PAUSED:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_READY_TO_PAUSED Nr %d", transition);
 			if (!get_downmix_setting())
 			{
-				dts->start_ok = 0;
 				return GST_STATE_CHANGE_FAILURE;
-			}
-			else
-			{
-				dts->start_ok = 1;
 			}
 			break;
 		case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
