@@ -63,11 +63,7 @@ struct _GstDtsDec {
   sample_t 	 bias;
   gboolean 	 dynamic_range_compression;
   sample_t 	*samples;
-#ifndef DTS_OLD
   dca_state_t   *state;
-#else
-  dts_state_t 	*state;
-#endif
 };
 
 struct _GstDtsDecClass {
