@@ -685,7 +685,7 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 {
 	GstDVBAudioSink *self = GST_DVBAUDIOSINK(sink);
-	GST_DEBUG_OBJECT(self, "EVENT %s", gst_event_type_get_name(GST_EVENT_TYPE(event)));
+	GST_INFO_OBJECT(self, "EVENT %s", gst_event_type_get_name(GST_EVENT_TYPE(event)));
 	gboolean ret = TRUE;
 
 	switch (GST_EVENT_TYPE(event))
@@ -1357,10 +1357,10 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 	switch(transition)
 	{
 	case GST_STATE_CHANGE_NULL_TO_READY:
-		GST_DEBUG_OBJECT(self,"GST_STATE_CHANGE_NULL_TO_READY");
+		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_NULL_TO_READY");
 		break;
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
-		GST_DEBUG_OBJECT(self,"GST_STATE_CHANGE_READY_TO_PAUSED");
+		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_READY_TO_PAUSED");
 		self->paused = TRUE;
 
 		if (self->fd >= 0)
@@ -1370,7 +1370,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		}
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-		GST_DEBUG_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
+		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 		if (self->fd >= 0) {ioctl(self->fd, AUDIO_CONTINUE);}
 #ifdef DREAMBOX
 		if (get_downmix_setting())
@@ -1389,17 +1389,17 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 	switch(transition)
 	{
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-		GST_DEBUG_OBJECT(self,"GST_STATE_CHANGE_PLAYING_TO_PAUSED");
+		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PLAYING_TO_PAUSED");
 		self->paused = TRUE;
 		if (self->fd >= 0) ioctl(self->fd, AUDIO_PAUSE);
 		/* wakeup the poll */
 		write(self->unlockfd[1], "\x01", 1);
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_READY:
-		GST_DEBUG_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_READY");
+		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_READY");
 		break;
 	case GST_STATE_CHANGE_READY_TO_NULL:
-		GST_DEBUG_OBJECT(self,"GST_STATE_CHANGE_READY_TO_NULL");
+		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_READY_TO_NULL");
 		break;
 	default:
 		break;
