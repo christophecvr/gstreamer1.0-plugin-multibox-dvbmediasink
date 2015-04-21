@@ -768,6 +768,30 @@ static gboolean gst_dtsdec_sink_event(GstAudioDecoder * dec , GstEvent * sink_ev
 				ret = FALSE;
 			}
 			break;
+		case GST_EVENT_SEGMENT:
+		{
+			const GstSegment *segment;
+			GstFormat format;
+			gdouble rate;
+			guint64 start, end, pos;
+			gst_event_parse_segment(sink_event, &segment);
+			format = segment->format;
+			rate = segment->rate;
+			start = segment->start;
+			end = segment->stop;
+			pos = segment->position;
+			GST_INFO_OBJECT(dts, "GST_EVENT_SEGMENT rate=%f format=%d start=%"G_GUINT64_FORMAT " position=%"G_GUINT64_FORMAT, rate, format, start, pos);
+			if (GST_AUDIO_DECODER_SRC_PAD(dts))
+			{
+				ret = gst_pad_push_event(GST_AUDIO_DECODER_SRC_PAD(dts), sink_event);
+			}
+			else
+			{
+				gst_event_unref(sink_event);
+				ret = FALSE;
+			}
+		}
+			break;
 		case GST_EVENT_TAG:
 			gst_event_parse_tag(sink_event, &taglist);
 			if (GST_AUDIO_DECODER_SRC_PAD(dts))
@@ -857,6 +881,7 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_READY_TO_PAUSED Nr %d", transition);
 			break;
 		case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PAUSED_TO_PLAYING: Nr %d", transition);
 			break;
 		case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PLAYING_TO_PAUSED Nr %d", transition);

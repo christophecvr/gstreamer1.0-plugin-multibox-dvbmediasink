@@ -770,16 +770,21 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		end = segment->stop;
 		pos = segment->position;
 
-		GST_DEBUG_OBJECT(self, "GST_EVENT_SEGMENT rate=%f %d\n", rate, format);
-
+		GST_INFO_OBJECT(self, "GST_EVENT_SEGMENT rate=%f format=%d start=%"G_GUINT64_FORMAT " position=%"G_GUINT64_FORMAT, rate, format, start, pos);
+        /* fixme on dreambox this does not work att all and I gues on any box*/
+		/* the video0 can't be opened since its in use */
+		/* The try off opening video0 makes sync issues worse than they already are */
 		if (format == GST_FORMAT_TIME)
 		{
 			self->timestamp_offset = start - pos;
 			if (rate != self->rate)
 			{
+				/* IS THIS NEEDED ? it really does not work on the contrary it increase the time*/
+				/* before sync is back ok after pause fast forward or backwards */
 				int video_fd = open("/dev/dvb/adapter0/video0", O_RDWR);
 				if (video_fd >= 0)
 				{
+					GST_INFO_OBJECT(self, "GST_EVENT_SEGMENT IS VIDEO0 OPEN ?");
 					int skip = 0, repeat = 0;
 					if (rate > 1.0)
 					{
@@ -815,6 +820,11 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		break;
 	}
 
+	case GST_EVENT_TAG:
+	{
+		
+	}
+		break;
 	default:
 		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		break;
