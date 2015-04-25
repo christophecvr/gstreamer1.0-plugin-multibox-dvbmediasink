@@ -79,6 +79,8 @@ enum
   PROP_DRC
 };
 
+ok_to_write = 1;
+
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
@@ -116,6 +118,8 @@ static gboolean gst_dtsdec_src_event(GstAudioDecoder * dec , GstEvent * src_even
 static GstStateChangeReturn gst_dtsdec_change_state(GstElement * dec, GstStateChange transition);
 static GstElementClass *parent_class = NULL;
 static gboolean get_downmix_setting();
+static gboolean get_dtsdownmix_setting();
+static gboolean get_dtsdownmix_pause();
 
 static void
 gst_dtsdec_class_init (GstDtsDecClass * klass)
@@ -187,7 +191,13 @@ gst_dtsdec_init (GstDtsDec * dtsdec)
   dtsdec->request_channels = DCA_CHANNEL;
   dtsdec->dynamic_range_compression = FALSE;
   GST_INFO_OBJECT(dtsdec, "DTSDEC_INIT");
-  
+  FILE *f;
+  f = fopen("/tmp/dtsdownmix", "w");
+  if (f)
+  {
+    fprintf(f,"PAUSE");
+    fclose(f);
+  }
   /* retrieve and intercept base class chain.
    * Quite HACKish, but that's dvd specs for you,
    * since one buffer needs to be split into 2 frames */
@@ -690,8 +700,8 @@ gst_dtsdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       gst_buffer_unref (buf);
     }
   } else {
-	GST_BUFFER_DTS(buf) = GST_BUFFER_PTS(buf);
-    ret = dts->base_chain (pad, parent, buf);
+	GST_BUFFER_PTS(buf) = GST_BUFFER_DTS(buf);
+	ret = dts->base_chain (pad, parent, buf);
   }
 
 done:
@@ -833,6 +843,9 @@ static gboolean gst_dtsdec_src_event(GstAudioDecoder * dec , GstEvent * src_even
 	klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
 	switch (GST_EVENT_TYPE (src_event))
 	{
+		case GST_EVENT_LATENCY:
+			gst_event_unref(src_event);
+			break;
 		default:
 			if (GST_AUDIO_DECODER_SINK_PAD(dts))
 			{
@@ -860,12 +873,44 @@ static gboolean get_downmix_setting()
 	return !strncmp(buffer, "downmix", 7);
 }
 
+static gboolean get_dtsdownmix_setting()
+{
+	FILE *f;
+	char buffer[10] = {0};
+	f = fopen("/tmp/dtsdownmix", "r");
+	if (f)
+	{
+		fread(buffer, sizeof(buffer), 1, f);
+		fclose(f);
+	}
+	return !strncmp(buffer, "PLAYING", 7);
+}
+
+static gboolean get_dtsdownmix_pause()
+{
+	FILE *f;
+	gboolean ret = FALSE;
+	char buffer[10] = {0};
+	f = fopen("/tmp/dtsdownmix", "r");
+	if (f)
+	{
+		fread(buffer, sizeof(buffer), 1, f);
+		fclose(f);
+	}
+	if(!strncmp(buffer, "PAUSE", 5))
+	{
+		ret = TRUE;
+	}
+	return ret;
+}
+
 static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstStateChange transition)
 {
 	GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
 	GstDtsDec *dts = GST_DTSDEC(element);
 	GstDtsDecClass *klass;
 	klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
+	FILE *f;
 
 	switch (transition) 
 	{
@@ -876,18 +921,44 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 				dts->state = NULL;
 				return GST_STATE_CHANGE_FAILURE;
 			}
+			f = fopen("/tmp/dtsdownmix", "w");
+			if (f)
+			{
+				fprintf(f,"PAUSE\n");
+				ok_to_write = 0;
+				fclose(f);
+			}
 			break;
 		case GST_STATE_CHANGE_READY_TO_PAUSED:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_READY_TO_PAUSED Nr %d", transition);
 			break;
 		case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PAUSED_TO_PLAYING: Nr %d", transition);
+			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PAUSED_TO_PLAYING");
+			f = fopen("/tmp/dtsdownmix", "w");
+			if (f)
+			{
+				fprintf(f,"PLAYING\n");
+				ok_to_write = 1;
+				fclose(f);
+			}
 			break;
 		case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PLAYING_TO_PAUSED Nr %d", transition);
+			f = fopen("/tmp/dtsdownmix", "w");
+			if (f)
+			{
+				fprintf(f,"PAUSE\n");
+				fclose(f);
+			}	
 			break;
 		case GST_STATE_CHANGE_PAUSED_TO_READY:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PAUSED_TO_READY Nr %d", transition);
+			f = fopen("/tmp/dtsdownmix", "w");
+			if (f)
+			{
+				fprintf(f,"none\n");
+				fclose(f);
+			}
 			break;
 		case GST_STATE_CHANGE_READY_TO_NULL:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_READY_TO_NULL Nr %d", transition);

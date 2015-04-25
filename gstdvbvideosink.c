@@ -1898,6 +1898,7 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 {
 	GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
 	GstDVBVideoSink *self = GST_DVBVIDEOSINK (element);
+	FILE *f;
 
 	switch (transition)
 	{
@@ -1914,9 +1915,9 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 		}
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 		if (self->fd >= 0) ioctl(self->fd, VIDEO_CONTINUE);
 		self->paused = FALSE;
+		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 		break;
 	default:
 		break;
