@@ -95,6 +95,10 @@ enum
 int ok_to_write = 1;
 static guint gst_dvbaudiosink_signals[LAST_SIGNAL] = { 0 };
 
+#if defined(HAVE_DTSDOWNMIX) && !defined(HAVE_DTS)
+#define HAVE_DTS
+#endif
+
 #ifdef HAVE_MP3
 #define MPEGCAPS \
 		"audio/mpeg, " \
@@ -371,15 +375,15 @@ static GstCaps *gst_dvbaudiosink_get_caps(GstBaseSink *basesink, GstCaps *filter
 #endif
 	);
 
+#if defined(HAVE_DTS) && !defined(HAVE_DTSDOWNMIX)
+	gst_caps_append(caps, gst_caps_from_string(DTSCAPS));
+#endif
+
 #ifdef HAVE_DTSDOWNMIX
 	if (!get_downmix_setting())
 	{
 		gst_caps_append(caps, gst_caps_from_string(DTSCAPS));
 	}
-#endif
-#if defined (HAVE_DTS) && !defined (HAVE_DTSDOWNMIX)
-	GST_INFO("HAVE DTS AND NOT HAVE_DTSDOWNMIX");
-	gst_caps_append(caps, gst_caps_from_string(DTSCAPS));
 #endif
 
 	if (filter)
@@ -1413,6 +1417,15 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 	{
 	case GST_STATE_CHANGE_NULL_TO_READY:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_NULL_TO_READY");
+#ifdef DREAMBOX
+		f = fopen("/tmp/dtsdownmix", "w");
+		if (f)
+		{
+			fprintf(f,"none\n");
+			ok_to_write = 0;
+			fclose(f);
+		}
+#endif
 		break;
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_READY_TO_PAUSED");
@@ -1478,6 +1491,15 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		break;
 	case GST_STATE_CHANGE_READY_TO_NULL:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_READY_TO_NULL");
+#ifdef DREAMBOX
+		f = fopen("/tmp/dtsdownmix", "w");
+		if (f)
+		{
+			fprintf(f,"none\n");
+			ok_to_write = 0;
+			fclose(f);
+		}
+#endif
 		break;
 	default:
 		break;
