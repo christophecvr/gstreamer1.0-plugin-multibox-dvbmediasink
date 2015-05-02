@@ -388,7 +388,7 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 {
 	GstDVBVideoSink *self = GST_DVBVIDEOSINK (sink);
 	GST_INFO_OBJECT (self, "EVENT %s", gst_event_type_get_name(GST_EVENT_TYPE (event)));
-	int ret = TRUE;
+	gboolean ret = FALSE;
 
 	switch (GST_EVENT_TYPE (event))
 	{
@@ -396,7 +396,14 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		self->flushing = TRUE;
 		/* wakeup the poll */
 		write(self->unlockfd[1], "\x01", 1);
-		if(self->paused) ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+		if(self->paused)
+		{
+			ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+		}
+		else
+		{
+			gst_event_unref(event);
+		}
 		break;
 	case GST_EVENT_FLUSH_STOP:
 		if (self->fd >= 0) ioctl(self->fd, VIDEO_CLEAR_BUFFER);
@@ -408,7 +415,14 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		}
 		self->flushing = FALSE;
 		GST_OBJECT_UNLOCK(self);
-		if(self->paused) ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+		if(self->paused)
+		{
+			ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+		}
+		else
+		{
+			gst_event_unref(event);
+		}
 		break;
 	case GST_EVENT_EOS:
 	{
@@ -418,6 +432,7 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		pfd[0].events = POLLIN;
 		pfd[1].fd = self->fd;
 		pfd[1].events = POLLIN;
+		ret = TRUE;
 
 		GST_BASE_SINK_PREROLL_UNLOCK(sink);
 		while (1)
@@ -451,7 +466,15 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 			}
 		}
 		GST_BASE_SINK_PREROLL_LOCK(sink);
-		if (ret) ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+		if (ret)
+		{
+			GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+		}
+		else
+		{
+			gst_event_unref(event);
+			ret = FALSE;
+		}
 		break;
 	}
 	case GST_EVENT_SEGMENT:
@@ -487,6 +510,11 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 				self->rate = rate;
 			}
 		}
+		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+		if(!ret)
+		{
+			gst_event_unref(event);
+		}
 		break;
 	}
 	case GST_EVENT_CAPS:
@@ -496,8 +524,13 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		if (caps)
 		{
             self->must_send_header = TRUE;
-			ret = gst_dvbvideosink_set_caps(sink, caps);
+			gst_dvbvideosink_set_caps(sink, caps);
+			ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 			gst_caps_unref(caps);
+		}
+		else
+		{
+			gst_event_unref(event);
 		}
 		break;
 	}
@@ -505,7 +538,6 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		break;
 	}
-
 	return ret;
 }
 
