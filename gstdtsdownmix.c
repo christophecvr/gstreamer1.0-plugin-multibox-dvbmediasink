@@ -79,8 +79,6 @@ enum
   PROP_DRC
 };
 
-ok_to_write = 1;
-
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
@@ -817,7 +815,6 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 			if (f)
 			{
 				fprintf(f,"PAUSE\n");
-				ok_to_write = 0;
 				fclose(f);
 			}
 			break;
@@ -827,7 +824,6 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 			if (f)
 			{
 				fprintf(f,"PLAYING\n");
-				ok_to_write = 1;
 				fclose(f);
 			}
 			break;
