@@ -130,6 +130,7 @@ struct _GstDVBAudioSink
 	gboolean pts_written;
 	gint64 lastpts;
 	gint64 timestamp_offset;
+	gint8 ok_to_write;
 
 	queue_entry_t *queue;
 };

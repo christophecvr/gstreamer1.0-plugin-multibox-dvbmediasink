@@ -92,7 +92,6 @@ enum
 	LAST_SIGNAL
 };
 
-int ok_to_write = 1;
 static guint gst_dvbaudiosink_signals[LAST_SIGNAL] = { 0 };
 
 #if defined(HAVE_DTSDOWNMIX) && !defined(HAVE_DTS)
@@ -994,11 +993,10 @@ GstFlowReturn gst_dvbaudiosink_push_buffer(GstDVBAudioSink *self, GstBuffer *buf
 	pes_header = pesheadermap.data;
 #ifdef DREAMBOX
 	int i = 0;
-	while (ok_to_write == 0 && i < 100)
+	while (self->ok_to_write == 0 && i < 100)
 	{
 		if(!get_dtsdownmix_setting())
 		{
-			ok_to_write = 0;
 			i++;
 		}
 		else
@@ -1006,7 +1004,7 @@ GstFlowReturn gst_dvbaudiosink_push_buffer(GstDVBAudioSink *self, GstBuffer *buf
 			if (self->fd >= 0) {ioctl(self->fd, AUDIO_CONTINUE);}
 			self->paused = FALSE;
 			self->playing = TRUE;
-			ok_to_write = 1;
+			self->ok_to_write = 1;
 			i = 0;
 		}
 	}
@@ -1411,12 +1409,12 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 	{
 	case GST_STATE_CHANGE_NULL_TO_READY:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_NULL_TO_READY");
+		self->ok_to_write = 1;
 #ifdef DREAMBOX
 		f = fopen("/tmp/dtsdownmix", "w");
 		if (f)
 		{
 			fprintf(f,"none\n");
-			ok_to_write = 0;
 			fclose(f);
 		}
 #endif
@@ -1437,14 +1435,13 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		{
 			GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING DREAMBOX SHOULD STAY IN PAUSE");
 			self->playing = FALSE;
-			ok_to_write = 0;
+			self->ok_to_write = 0;
 			self->paused = TRUE;
 		}
 		else
 		{
 			if (self->fd >= 0) {ioctl(self->fd, AUDIO_CONTINUE);}
 			self->playing = TRUE;
-			ok_to_write = 1;
 			self->paused = FALSE;
 		}
 #else
@@ -1474,7 +1471,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 			if (f)
 			{
 				fprintf(f,"PAUSE\n");
-				ok_to_write = 0;
+				self->ok_to_write = 0;
 				fclose(f);
 			}
 		}
@@ -1482,6 +1479,9 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_READY:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_READY");
+#ifdef DREAMBOX
+		self->ok_to_write = 1;
+#endif
 		break;
 	case GST_STATE_CHANGE_READY_TO_NULL:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_READY_TO_NULL");
@@ -1490,7 +1490,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		if (f)
 		{
 			fprintf(f,"none\n");
-			ok_to_write = 0;
+			self->ok_to_write = 1;
 			fclose(f);
 		}
 #endif
