@@ -1467,7 +1467,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		/* wakeup the poll */
 		write(self->unlockfd[1], "\x01", 1);
 #ifdef DREAMBOX
-		if(get_dtsdownmix_setting)
+		if(get_dtsdownmix_setting())
 		{
 			self->playing = FALSE;
 			f = fopen("/tmp/dtsdownmix", "w");
