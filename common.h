@@ -1,5 +1,18 @@
 #ifndef _common_h
 #define _common_h
+#include <unistd.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <linux/dvb/audio.h>
+#include <linux/dvb/video.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <stdio.h>
+#include <time.h>
+#include <sys/time.h>
+
 
 typedef struct queue_entry
 {
@@ -15,5 +28,13 @@ int queue_front(queue_entry_t **queue_base, GstBuffer **buffer, size_t *start, s
 
 void pes_set_pts(long long timestamp, unsigned char *pes_header);
 void pes_set_payload_size(size_t size, unsigned char *pes_header);
+
+void gst_sleepms(uint32_t msec);
+void gst_sleepus(uint32_t usec);
+
+#if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
+gboolean get_dtsdownmix_playing();
+gboolean get_dtsdownmix_pause();
+#endif
 
 #endif

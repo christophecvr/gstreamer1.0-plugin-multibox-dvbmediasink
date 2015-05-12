@@ -41,29 +41,32 @@ typedef struct _GstDtsDec GstDtsDec;
 typedef struct _GstDtsDecClass GstDtsDecClass;
 
 struct _GstDtsDec {
-  GstAudioDecoder	 element;
+	GstAudioDecoder	 element;
 
-  GstPadChainFunction base_chain;
+	GstPadChainFunction base_chain;
 
-  gboolean       dvdmode;
-  gboolean       flag_update;
-  gboolean       prev_flags;
+	gboolean dvdmode;
+	gboolean flag_update;
+	gboolean prev_flags;
+	gboolean state_paused;
+	gboolean state_playing;
+	gboolean first_paused;
 
-  /* stream properties */
-  gint 	         bit_rate;
-  gint 	         sample_rate;
-  gint 	         stream_channels;
-  gint 	         request_channels;
-  gint 	         using_channels;
+	/* stream properties */
+	gint 	         bit_rate;
+	gint 	         sample_rate;
+	gint 	         stream_channels;
+	gint 	         request_channels;
+	gint 	         using_channels;
 
-  gint           channel_reorder_map[6];
+	gint           channel_reorder_map[6];
 
-  /* decoding properties */
-  sample_t 	 level;
-  sample_t 	 bias;
-  gboolean 	 dynamic_range_compression;
-  sample_t 	*samples;
-  dca_state_t   *state;
+	/* decoding properties */
+	sample_t 	 level;
+	sample_t 	 bias;
+	gboolean 	 dynamic_range_compression;
+	sample_t 	*samples;
+	dca_state_t   *state;
 };
 
 struct _GstDtsDecClass {
