@@ -1151,15 +1151,14 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 	int i = 0;
 	while (self->ok_to_write == 0)
 	{
-		if(!get_dtsdownmix_playing() && i < 1000)
+		if(!get_dtsdownmix_playing() && i < 200)
 		{
 			i++;
 		}
 		else
 		{
-			//if (self->fd >= 0 && !self->first_paused) {ioctl(self->fd, AUDIO_SET_AV_SYNC, FALSE);}
+			if (self->fd >= 0 && !self->first_paused) {ioctl(self->fd, AUDIO_CONTINUE);}
 			if(self->first_paused) {self->first_paused = FALSE;}
-			//if (self->fd >= 0 && !self->first_paused) {ioctl(self->fd, AUDIO_CONTINUE);}
 			self->paused = FALSE;
 			self->ok_to_write = 1;
 			GST_INFO_OBJECT(self,"AUDIO CONTINUES number of tries = %d", i);
@@ -1167,8 +1166,6 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 			self->playing = TRUE;
 		}
 	}
-//	if (self->first_paused) {self->playing = TRUE;}
-	//if (self->first_paused) gst_sleepms(150);
 #endif
 
 	if (self->bypass <= AUDIOTYPE_UNKNOWN)
@@ -1402,7 +1399,20 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		self->paused = TRUE;
 		self->first_paused = TRUE;
 #if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
-		//self->playing = FALSE;
+		if (get_dtsdownmix_pause())
+		{
+			if (self->fd >= 0) {ioctl(self->fd, AUDIO_SELECT_SOURCE, AUDIO_SOURCE_MEMORY);}
+			GST_INFO_OBJECT(self,"WE ARE USING DTS_DOWNMIX");
+			self->playing = FALSE;
+		}
+		else
+		{
+			if (self->fd >= 0)
+			{
+				ioctl(self->fd, AUDIO_SELECT_SOURCE, AUDIO_SOURCE_MEMORY);
+				ioctl(self->fd, AUDIO_PAUSE);
+			}
+		}
 #else
 		if (self->fd >= 0)
 		{
@@ -1416,11 +1426,10 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 #if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
 		if (!get_dtsdownmix_playing() && get_dtsdownmix_pause())
 		{
-			GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING DREAMBOX SHOULD STAY IN PAUSE");			
+			GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING DREAMBOX SHOULD STAY IN PAUSE");
 			self->playing = FALSE;
 			self->ok_to_write = 0;
-			if(self->first_paused) self->paused = TRUE;
-			else self->paused = TRUE;
+			self->paused = TRUE;
 		}
 		else
 		{
@@ -1444,14 +1453,8 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PLAYING_TO_PAUSED");
 		self->paused = TRUE;
-#if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
-		if(!get_dtsdownmix_playing())
-		{
-			if (self->fd >= 0) ioctl(self->fd, AUDIO_PAUSE);
-		}
-#else
+
 		if (self->fd >= 0) ioctl(self->fd, AUDIO_PAUSE);
-#endif
 		/* wakeup the poll */
 		write(self->unlockfd[1], "\x01", 1);
 #if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
@@ -1486,7 +1489,6 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 			fclose(f);
 		}
 #endif
-		gst_dvbaudiosink_stop(self);
 		break;
 	default:
 		break;

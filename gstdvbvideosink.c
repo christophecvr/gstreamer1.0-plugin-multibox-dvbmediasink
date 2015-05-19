@@ -1714,6 +1714,9 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 		break;
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_READY_TO_PAUSED");
+#if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
+		self->first_paused = TRUE;
+#endif
 		self->paused = TRUE;
 		if (self->fd >= 0)
 		{
@@ -1725,13 +1728,36 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 		if (self->fd >= 0) ioctl(self->fd, VIDEO_CONTINUE);
 		self->paused = FALSE;
+#if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
+		if(!self->first_paused)
+		{
+			f = fopen("/tmp/dtsdownmix", "w");
+			if (f)
+			{
+				fprintf(f,"PLAYING\n");
+				fclose(f);
+			}
+		}
+#endif
 		break;
 	default:
 		break;
 	}
 
 	ret = GST_ELEMENT_CLASS(parent_class)->change_state(element, transition);
-
+#if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
+	if(self->first_paused && !self->paused)
+	{
+		gst_sleepms(135);
+		self->first_paused = FALSE;
+		f = fopen("/tmp/dtsdownmix", "w");
+		if (f)
+		{
+			fprintf(f,"PLAYING\n");
+			fclose(f);
+		}
+	}
+#endif
 	switch (transition)
 	{
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:

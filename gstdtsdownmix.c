@@ -68,9 +68,6 @@
 GST_DEBUG_CATEGORY_STATIC (dtsdownmix_debug);
 #define GST_CAT_DEFAULT (dtsdownmix_debug)
 
-gint number_of_streams = 0;
-gint numbers_paused = 0;
-
 enum
 {
   PROP_0,
@@ -181,7 +178,6 @@ gst_dtsdec_init (GstDtsDec * dtsdec)
   dtsdec->request_channels = DCA_CHANNEL | DCA_STEREO;
   dtsdec->dynamic_range_compression = FALSE;
   GST_INFO_OBJECT(dtsdec, "DTSDEC_INIT");
-  number_of_streams++;
   /* retrieve and intercept base class chain.
    * Quite HACKish, but that's dvd specs for you,
    * since one buffer needs to be split into 2 frames */
@@ -195,7 +191,6 @@ gst_dtsdec_start (GstAudioDecoder * dec)
 {
   GstDtsDec *dts = GST_DTSDEC (dec);
   GstDtsDecClass *klass;
-  //number_of_streams++;
    
   GST_INFO_OBJECT (dec, "START"G_GUINT64_FORMAT);
   klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
@@ -218,7 +213,6 @@ static gboolean
 gst_dtsdec_stop (GstAudioDecoder * dec)
 {
   GstDtsDec *dts = GST_DTSDEC (dec);
-  number_of_streams--;
 
   GST_INFO_OBJECT (dec, "stop");
 
@@ -507,7 +501,6 @@ gst_dtsdec_handle_frame (GstAudioDecoder * bdec, GstBuffer * buffer)
       gst_structure_get_int (structure, "channels", &channels);
       if (channels <= 6)
 		flags = dts_channels[channels - 1];
-//		flags = dts_channels[1];
       else
         flags = dts_channels[5];
 
@@ -687,8 +680,6 @@ gst_dtsdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       gst_buffer_unref (buf);
     }
   } else {
-//	GST_BUFFER_DTS(buf) = GST_BUFFER_PTS(buf);
-//	if(dts->state_playing)
 		ret = dts->base_chain (pad, parent, buf);
   }
 
@@ -767,7 +758,6 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 	GstDtsDecClass *klass;
 	klass = GST_DTSDEC_CLASS (G_OBJECT_GET_CLASS (dts));
 	FILE *f;
-	gint audio_fd;
 	
 	switch (transition) 
 	{
@@ -781,62 +771,16 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 			break;
 		case GST_STATE_CHANGE_READY_TO_PAUSED:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_READY_TO_PAUSED");
-			numbers_paused++;
 			dts->first_paused = TRUE;
-			if (numbers_paused == number_of_streams){
 			f = fopen("/tmp/dtsdownmix", "w");
 			if (f)
 			{
 				fprintf(f,"PAUSE\n");
 				fclose(f);
 			}
-			audio_fd = open("/dev/dvb/adapter0/audio0", O_RDWR | O_NONBLOCK);
-			if (audio_fd >= 0)
-			{
-				GST_INFO_OBJECT(dts,"ACCES AUDIO_FD OUT OF GSTDTSDOWNMIX OK");
-				ioctl(audio_fd, AUDIO_SELECT_SOURCE, AUDIO_SOURCE_MEMORY);
-				ioctl(audio_fd, AUDIO_STOP);
-				ioctl(audio_fd, AUDIO_SET_AV_SYNC, FALSE);
-				ioctl(audio_fd, AUDIO_CLEAR_BUFFER);
-				close(audio_fd);
-			}}
 			break;
 		case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-			dts->state_paused = FALSE;
-			dts->state_playing = TRUE;
-			numbers_paused--;
-			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PAUSED_TO_PLAYING, paused = %d, playing = %d", dts->state_paused, dts->state_playing);
-			if (!numbers_paused){
-			f = fopen("/tmp/dtsdownmix", "w");
-			if (f)
-			{
-				fprintf(f,"PLAYING\n");
-				fclose(f);
-			}
-			audio_fd = open("/dev/dvb/adapter0/audio0", O_RDWR | O_NONBLOCK);
-			if (audio_fd >= 0)
-			{
-				GST_INFO_OBJECT(dts,"ACCES AUDIO_FD OUT OF GSTDTSDOWNMIX OK");
-				//ioctl(audio_fd, AUDIO_SELECT_SOURCE, AUDIO_SOURCE_MEMORY);
-				if(dts->first_paused)
-				{
-					//ioctl(audio_fd, AUDIO_STOP);
-					//ioctl(audio_fd, AUDIO_CLEAR_BUFFER);
-					ioctl(audio_fd, AUDIO_PLAY);
-					dts->first_paused = FALSE;
-				}
-				else
-				{
-					ioctl(audio_fd, AUDIO_CONTINUE);
-				}
-				close(audio_fd);
-			}
-			f = fopen("/tmp/dtsdownmix", "w");
-			if (f)
-			{
-				fprintf(f,"PLAYING\n");
-				fclose(f);
-			}}
+			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 			break;
 		default:
 			break;
@@ -847,20 +791,7 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 	switch(transition)
 	{
 		case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-			dts->state_paused = TRUE;
-			dts->state_playing = FALSE;
-			numbers_paused++;
-			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PLAYING_TO_PAUSED , paused = %d, playing = %d", dts->state_paused, dts->state_playing);
-			audio_fd = open("/dev/dvb/adapter0/audio0", O_RDWR | O_NONBLOCK);
-			if (audio_fd >= 0)
-			{
-				GST_INFO_OBJECT(dts,"ACCES AUDIO_FD OUT OF GSTDTSDOWNMIX OK");
-				ioctl(audio_fd, AUDIO_SELECT_SOURCE, AUDIO_SOURCE_MEMORY);
-				ioctl(audio_fd, AUDIO_PAUSE);
-				//ioctl(audio_fd, AUDIO_CLEAR_BUFFER);
-				//ioctl(audio_fd, AUDIO_PLAY);
-				close(audio_fd);
-			}
+			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PLAYING_TO_PAUSED");
 			f = fopen("/tmp/dtsdownmix", "w");
 			if (f)
 			{
@@ -870,8 +801,6 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 			break;
 		case GST_STATE_CHANGE_PAUSED_TO_READY:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PAUSED_TO_READY Nr %d", transition);
-			numbers_paused = 0;
-			number_of_streams = 0;
 			f = fopen("/tmp/dtsdownmix", "w");
 			if (f)
 			{

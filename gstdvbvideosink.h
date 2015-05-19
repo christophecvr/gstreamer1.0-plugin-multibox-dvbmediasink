@@ -128,6 +128,7 @@ struct _GstDVBVideoSink
 	gdouble rate;
 	gboolean playing, paused, flushing, unlocking;
 	gboolean pts_written;
+	gboolean first_paused;
 	gint64 lastpts;
 	gint64 timestamp_offset;
 	gboolean must_send_header;
