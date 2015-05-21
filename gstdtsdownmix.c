@@ -781,6 +781,13 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 			break;
 		case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PAUSED_TO_PLAYING");
+			dts->first_paused = TRUE;
+			f = fopen("/tmp/dtsdownmix", "w");
+			if (f)
+			{
+				fprintf(f,"PLAYING\n");
+				fclose(f);
+			}
 			break;
 		default:
 			break;
