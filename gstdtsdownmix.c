@@ -68,6 +68,9 @@
 GST_DEBUG_CATEGORY_STATIC (dtsdownmix_debug);
 #define GST_CAT_DEFAULT (dtsdownmix_debug)
 
+static gint8 stream_counter = 0;
+static gint8 numbers_paused = 0;
+
 enum
 {
   PROP_0,
@@ -175,6 +178,7 @@ gst_dtsdec_class_init (GstDtsDecClass * klass)
 static void
 gst_dtsdec_init (GstDtsDec * dtsdec)
 {
+  stream_counter++;
   dtsdec->request_channels = DCA_CHANNEL | DCA_STEREO;
   dtsdec->dynamic_range_compression = FALSE;
   GST_INFO_OBJECT(dtsdec, "DTSDEC_INIT");
@@ -189,6 +193,9 @@ gst_dtsdec_init (GstDtsDec * dtsdec)
 static gboolean
 gst_dtsdec_start (GstAudioDecoder * dec)
 {
+  gint64 tolerance;
+  tolerance = 900; 
+  gst_audio_decoder_set_tolerance(dec, tolerance);
   GstDtsDec *dts = GST_DTSDEC (dec);
   GstDtsDecClass *klass;
    
@@ -772,6 +779,7 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 		case GST_STATE_CHANGE_READY_TO_PAUSED:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_READY_TO_PAUSED");
 			dts->first_paused = TRUE;
+			numbers_paused++;
 			f = fopen("/tmp/dtsdownmix", "w");
 			if (f)
 			{
@@ -782,11 +790,15 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 		case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 			dts->first_paused = TRUE;
-			f = fopen("/tmp/dtsdownmix", "w");
-			if (f)
+			numbers_paused--;
+			if (numbers_paused == stream_counter - 1)
 			{
-				fprintf(f,"PLAYING\n");
-				fclose(f);
+				f = fopen("/tmp/dtsdownmix", "w");
+				if (f)
+				{
+					fprintf(f,"PLAYING\n");
+					fclose(f);
+				}
 			}
 			break;
 		default:
@@ -799,6 +811,7 @@ static GstStateChangeReturn gst_dtsdec_change_state(GstElement * element, GstSta
 	{
 		case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PLAYING_TO_PAUSED");
+			numbers_paused = stream_counter;
 			f = fopen("/tmp/dtsdownmix", "w");
 			if (f)
 			{
