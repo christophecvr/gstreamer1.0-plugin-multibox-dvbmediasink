@@ -1,11 +1,10 @@
-#if GST_VERSION_MAJOR < 1
-#include <gst/gst.h>
-#else
-#include <gstreamer-1.0/gst/gst.h>
+#ifdef HAVE_CONFIG_H
+#include <config.h>
 #endif
-
+#include <gst/gst.h>
 
 #include "common.h"
+#include "gstdvbsink-marshal.h"
 
 void queue_push(queue_entry_t **queue_base, GstBuffer *buffer, size_t start, size_t end)
 {
@@ -75,3 +74,83 @@ void pes_set_payload_size(size_t size, unsigned char *pes_header)
 	pes_header[5] = size & 0xFF;
 }
 
+void gst_sleepms(uint32_t msec)
+{
+	//does not interfere with signals like sleep and usleep do
+	struct timespec req_ts;
+	req_ts.tv_sec = msec / 1000;
+	req_ts.tv_nsec = (msec % 1000) * 1000000L;
+	int32_t olderrno = errno; // Some OS seem to set errno to ETIMEDOUT when sleeping
+	while (1)
+	{
+		/* Sleep for the time specified in req_ts. If interrupted by a
+		signal, place the remaining time left to sleep back into req_ts. */
+		int rval = nanosleep (&req_ts, &req_ts);
+		if (rval == 0)
+			break; // Completed the entire sleep time; all done.
+		else if (errno == EINTR)
+			continue; // Interrupted by a signal. Try again.
+		else 
+			break; // Some other error; bail out.
+	}
+	errno = olderrno;
+}
+
+void gst_sleepus(uint32_t usec)
+{
+	//does not interfere with signals like sleep and usleep do
+	struct timespec req_ts;
+	req_ts.tv_sec = usec / 1000000;
+	req_ts.tv_nsec = (usec % 1000000) * 1000L;
+	int32_t olderrno = errno;       // Some OS seem to set errno to ETIMEDOUT when sleeping
+	while (1)
+	{
+		/* Sleep for the time specified in req_ts. If interrupted by a
+		signal, place the remaining time left to sleep back into req_ts. */
+		int rval = nanosleep (&req_ts, &req_ts);
+		if (rval == 0)
+			break; // Completed the entire sleep time; all done.
+		else if (errno == EINTR)
+			continue; // Interrupted by a signal. Try again.
+		else 
+			break; // Some other error; bail out.
+	}
+	errno = olderrno;
+}
+
+
+#if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
+
+gboolean get_dtsdownmix_playing()
+{
+	gboolean ret = FALSE;
+	FILE *f;
+	char buffer[10] = {0};
+	f = fopen("/tmp/dtsdownmix", "r");
+	if (f)
+	{
+		fread(buffer, sizeof(buffer), 1, f);
+		fclose(f);
+	}
+	ret = !strncmp(buffer, "PLAYING", 7);
+	return ret;
+}
+
+gboolean get_dtsdownmix_pause()
+{
+	FILE *f;
+	gboolean ret = FALSE;
+	char buffer[10] = {0};
+	f = fopen("/tmp/dtsdownmix", "r");
+	if (f)
+	{
+		fread(buffer, sizeof(buffer), 1, f);
+		fclose(f);
+	}
+	if(!strncmp(buffer, "PAUSE", 5))
+	{
+		ret = TRUE;
+	}
+	return ret;
+}
+#endif

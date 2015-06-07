@@ -63,15 +63,6 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
-#include <unistd.h>
-#include <stdint.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <linux/dvb/video.h>
-#include <fcntl.h>
-#include <poll.h>
-#include <string.h>
-#include <stdio.h>
 
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
@@ -239,6 +230,8 @@ GST_STATIC_PAD_TEMPLATE (
 );
 
 static void gst_dvbvideosink_init(GstDVBVideoSink *self);
+static void gst_dvbvideosink_dispose(GObject *obj);
+static void gst_dvbvideosink_reset(GObject *obj);
 
 #define DEBUG_INIT \
 	GST_DEBUG_CATEGORY_INIT(dvbvideosink_debug, "dvbvideosink", 0, "dvbvideosink element");
@@ -264,6 +257,8 @@ static void gst_dvbvideosink_class_init(GstDVBVideoSinkClass *self)
 	GstElementClass *element_class = GST_ELEMENT_CLASS (self);
 
 	parent_class = g_type_class_peek_parent(self);
+	gobject_class->finalize = gst_dvbvideosink_reset;
+	gobject_class->dispose = gst_dvbvideosink_dispose;
 
 	gst_element_class_add_pad_template(element_class, gst_static_pad_template_get(&sink_factory));
 	gst_element_class_set_static_metadata(element_class,
@@ -327,30 +322,25 @@ static void gst_dvbvideosink_init(GstDVBVideoSink *self)
 	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), TRUE);
 }
 
+static void gst_dvbvideosink_dispose(GObject *obj)
+{
+	GST_INFO_OBJECT(obj,"DISPOSING DTSDEC");
+	G_OBJECT_CLASS(parent_class)->dispose(obj);
+	GST_INFO("DISPOSING DTSDEC DONE");
+}
+
+static void gst_dvbvideosink_reset(GObject *obj)
+{
+	GST_INFO_OBJECT(obj,"RESET DVBAUDIOSINK");
+	G_OBJECT_CLASS(parent_class)->finalize(obj);
+	GST_INFO("RESET DVBAUDIOSINK DONE");
+}
+
 static gint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
 {
 	gint64 cur = 0;
 	if (self->fd < 0 || !self->playing || !self->pts_written) return GST_CLOCK_TIME_NONE;
-#ifdef DREAMBOX
-	if (self->pts_written)
-	{
-		ioctl(self->fd, VIDEO_GET_PTS, &cur);
-		if (cur)
-		{
-			self->lastpts = cur;
-		}
-		else
-		{
-			cur = self->lastpts;
-		}
-		cur *= 11111;
-		cur -= self->timestamp_offset;
-	}
-	else
-	{
-		cur = 0;
-	}
-#else
+
 	ioctl(self->fd, VIDEO_GET_PTS, &cur);
 	if (cur)
 	{
@@ -362,7 +352,7 @@ static gint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
 	}
 	cur *= 11111;
 	cur -= self->timestamp_offset;
-#endif
+
 	return cur;
 }
 
@@ -387,7 +377,7 @@ static gboolean gst_dvbvideosink_unlock_stop(GstBaseSink *basesink)
 static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 {
 	GstDVBVideoSink *self = GST_DVBVIDEOSINK (sink);
-	GST_INFO_OBJECT (self, "EVENT %s", gst_event_type_get_name(GST_EVENT_TYPE (event)));
+	GST_DEBUG_OBJECT (self, "EVENT %s", gst_event_type_get_name(GST_EVENT_TYPE (event)));
 	int ret = TRUE;
 
 	switch (GST_EVENT_TYPE (event))
@@ -1663,7 +1653,7 @@ static gboolean gst_dvbvideosink_stop(GstBaseSink *basesink)
 {
 	GstDVBVideoSink *self = GST_DVBVIDEOSINK(basesink);
 	FILE *f = NULL;
-	GST_DEBUG_OBJECT(self, "stop");
+	GST_INFO_OBJECT(self, "stop");
 	if (self->fd >= 0)
 	{
 		if (self->playing)
@@ -1742,6 +1732,9 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 		break;
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_READY_TO_PAUSED");
+#if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
+		self->first_paused = TRUE;
+#endif
 		self->paused = TRUE;
 		if (self->fd >= 0)
 		{
@@ -1750,9 +1743,9 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 		}
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 		if (self->fd >= 0) ioctl(self->fd, VIDEO_CONTINUE);
 		self->paused = FALSE;
-		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 		break;
 	default:
 		break;
@@ -1774,6 +1767,8 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 		break;
 	case GST_STATE_CHANGE_READY_TO_NULL:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_READY_TO_NULL");
+		//gst_element_set_state(element, GST_STATE_NULL);
+		//gst_object_unref(self);
 		break;
 	default:
 		break;
@@ -1805,7 +1800,7 @@ static gboolean plugin_init (GstPlugin *plugin)
 GST_PLUGIN_DEFINE (
 	GST_VERSION_MAJOR,
 	GST_VERSION_MINOR,
-	dvb_video_out,
+	dvbvideosink,
 	"DVB Video Output",
 	plugin_init,
 	VERSION,
