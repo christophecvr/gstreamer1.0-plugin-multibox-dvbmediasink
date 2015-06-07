@@ -118,7 +118,9 @@ void gst_sleepus(uint32_t usec)
 	errno = olderrno;
 }
 
+
 #if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
+
 gboolean get_dtsdownmix_playing()
 {
 	gboolean ret = FALSE;

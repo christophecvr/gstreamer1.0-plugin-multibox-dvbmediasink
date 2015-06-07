@@ -84,6 +84,7 @@ enum
 
 static guint gst_dvbaudiosink_signals[LAST_SIGNAL] = { 0 };
 
+
 #if defined(HAVE_DTSDOWNMIX) && !defined(HAVE_DTS)
 #define HAVE_DTS
 #endif
@@ -181,6 +182,8 @@ GST_STATIC_PAD_TEMPLATE(
 );
 
 static void gst_dvbaudiosink_init(GstDVBAudioSink *self);
+static void gst_dvbaudiosink_dispose(GObject *obj);
+static void gst_dvbaudiosink_reset(GObject *obj);
 
 #define DEBUG_INIT \
 	GST_DEBUG_CATEGORY_INIT(dvbaudiosink_debug, "dvbaudiosink", 0, "dvbaudiosink element");
@@ -207,6 +210,9 @@ static void gst_dvbaudiosink_class_init(GstDVBAudioSinkClass *self)
 	GstElementClass *element_class = GST_ELEMENT_CLASS(self);
 
 	parent_class = g_type_class_peek_parent(self);
+
+	gobject_class->finalize = gst_dvbaudiosink_reset;
+	gobject_class->dispose = gst_dvbaudiosink_dispose;
 
 	gst_element_class_add_pad_template(element_class, gst_static_pad_template_get(&sink_factory));
 	gst_element_class_set_static_metadata(element_class,
@@ -253,6 +259,7 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 	self->cache = NULL;
 	self->playing = self->flushing = self->unlocking = self->paused = FALSE;
 	self->pts_written = FALSE;
+	self->dts_downmix_playing = FALSE;
 	self->lastpts = 0;
 	self->timestamp_offset = 0;
 	self->queue = NULL;
@@ -261,14 +268,29 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 	self->rate = 1.0;
 	self->timestamp = GST_CLOCK_TIME_NONE;
 
+	//gst_base_sink_set_render_delay(GST_BASE_SINK(self), 15000);
 	gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
 	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), TRUE);
+}
+
+static void gst_dvbaudiosink_dispose(GObject *obj)
+{
+	GST_INFO_OBJECT(obj,"DISPOSING DTSDEC");
+	G_OBJECT_CLASS(parent_class)->dispose(obj);
+	GST_INFO("DISPOSING DTSDEC DONE");
+}
+
+static void gst_dvbaudiosink_reset(GObject *obj)
+{
+	GST_INFO_OBJECT(obj,"RESET DVBAUDIOSINK");
+	G_OBJECT_CLASS(parent_class)->finalize(obj);
+	GST_INFO("RESET DVBAUDIOSINK DONE");
 }
 
 static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
 {
 	gint64 cur = 0;
-	if (self->fd < 0 || !self->playing || !self->pts_written) return GST_CLOCK_TIME_NONE;
+	if (self->fd < 0 || !self->playing || !self->pts_written){return GST_CLOCK_TIME_NONE;}
 
 	ioctl(self->fd, AUDIO_GET_PTS, &cur);
 	if (cur)
@@ -772,7 +794,11 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		if (format == GST_FORMAT_TIME)
 		{
 			self->timestamp_offset = start - pos;
+#if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
+			if (rate != self->rate && !get_dtsdownmix_playing())
+#else
 			if (rate != self->rate)
+#endif
 			{
 				/* IS THIS NEEDED ? it really does not work on the contrary it increase the time*/
 				/* before sync is back ok after pause fast forward or backwards */
@@ -802,6 +828,10 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 				ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 			}
 		}
+		else
+		{
+			ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+		}
 		break;
 	}
  	case GST_EVENT_CAPS:
@@ -810,12 +840,17 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		gst_event_parse_caps(event, &caps);
 		if (caps)
 		{
+			GST_INFO_OBJECT(self,"CAPS %"GST_PTR_FORMAT, caps);
 			ret = gst_dvbaudiosink_set_caps(sink, caps);
-			if (ret != TRUE)
-			{
-				//GST_ELEMENT_ERROR(self, STREAM, FORMAT,(NULL), ("Set caps failed. Stop render."));
-			}
 		}
+		break;
+	}
+	case GST_EVENT_TAG:
+	{
+		GstTagList *taglist;
+		gst_event_parse_tag(event, &taglist);
+		GST_INFO_OBJECT(self,"TAG %"GST_PTR_FORMAT, taglist);
+		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		break;
 	}
 	default:
@@ -1147,6 +1182,7 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 	gsize buffersize;
 	buffersize = gst_buffer_get_size(buffer);
 	GstClockTime timestamp = GST_BUFFER_PTS(buffer);
+
 #if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
 	int i = 0;
 	while (self->ok_to_write == 0)
@@ -1160,10 +1196,11 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 			if (self->fd >= 0) {ioctl(self->fd, AUDIO_CONTINUE);}
 			if(self->first_paused) {self->first_paused = FALSE;}
 			self->paused = FALSE;
+			self->playing = TRUE;
 			self->ok_to_write = 1;
+			self->dts_downmix_playing = TRUE;
 			GST_INFO_OBJECT(self,"AUDIO CONTINUES number of tries = %d", i);
 			i = 0;
-			self->playing = TRUE;
 		}
 	}
 #endif
@@ -1389,7 +1426,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		f = fopen("/tmp/dtsdownmix", "w");
 		if (f)
 		{
-			fprintf(f,"none\n");
+			fprintf(f,"NONE\n");
 			fclose(f);
 		}
 #endif
@@ -1407,7 +1444,6 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 				ioctl(self->fd, AUDIO_PAUSE);
 			}
 			GST_INFO_OBJECT(self,"WE ARE USING DTS_DOWNMIX");
-			//self->playing = FALSE;
 		}
 		else
 		{
@@ -1430,10 +1466,26 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 #if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
 		if (!get_dtsdownmix_playing() && get_dtsdownmix_pause())
 		{
-			GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING DREAMBOX SHOULD STAY IN PAUSE");
-			//self->playing = FALSE;
-			self->ok_to_write = 0;
-			self->paused = TRUE;
+			if(self->first_paused)
+			{
+				/*waiting 3 seconds until enigma2 is ready.
+				Needed by dtsdownmix to have the audio track selected
+				before audio is launched*/
+				gst_sleepms(3000);
+			    self->playing = TRUE;
+				if (self->fd >= 0) {ioctl(self->fd, AUDIO_CONTINUE);}
+				self->ok_to_write = 1;
+				self->dts_downmix_playing = TRUE;
+				self->paused = FALSE;
+				GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING DREAMBOX BY FIRST UNPAUSED");
+			}
+			else
+			{
+				GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING DREAMBOX STAYS IN PAUSE");
+				self->playing = FALSE;
+				self->ok_to_write = 0;
+				self->paused = TRUE;
+			}
 		}
 		else
 		{
@@ -1458,19 +1510,23 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PLAYING_TO_PAUSED");
 		self->paused = TRUE;
 
-		if (self->fd >= 0) ioctl(self->fd, AUDIO_PAUSE);
+		if (self->fd >= 0)
+		{
+			ioctl(self->fd, AUDIO_PAUSE);
+		}
 		/* wakeup the poll */
 		write(self->unlockfd[1], "\x01", 1);
 #if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
 		if(get_dtsdownmix_playing())
 		{
+			self->dts_downmix_playing = FALSE;
 			self->first_paused = FALSE;
 			self->playing = FALSE;
 			f = fopen("/tmp/dtsdownmix", "w");
 			if (f)
 			{
 				fprintf(f,"PAUSE\n");
-				self->ok_to_write = 0;
+				self->ok_to_write = 1;
 				fclose(f);
 			}
 		}
@@ -1488,7 +1544,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		f = fopen("/tmp/dtsdownmix", "w");
 		if (f)
 		{
-			fprintf(f,"none\n");
+			fprintf(f,"NONE\n");
 			self->ok_to_write = 1;
 			fclose(f);
 		}
@@ -1527,7 +1583,7 @@ static gboolean plugin_init(GstPlugin *plugin)
 GST_PLUGIN_DEFINE(
 	GST_VERSION_MAJOR,
 	GST_VERSION_MINOR,
-	dvb_audio_out,
+	dvbaudiosink,
 	"DVB Audio Output",
 	plugin_init,
 	VERSION,
