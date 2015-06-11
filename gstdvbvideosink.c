@@ -324,16 +324,14 @@ static void gst_dvbvideosink_init(GstDVBVideoSink *self)
 
 static void gst_dvbvideosink_dispose(GObject *obj)
 {
-	GST_INFO_OBJECT(obj,"DISPOSING DTSDEC");
 	G_OBJECT_CLASS(parent_class)->dispose(obj);
-	GST_INFO("DISPOSING DTSDEC DONE");
+	GST_INFO("GstDVBVideoSink DISPOSED");
 }
 
 static void gst_dvbvideosink_reset(GObject *obj)
 {
-	GST_INFO_OBJECT(obj,"RESET DVBAUDIOSINK");
 	G_OBJECT_CLASS(parent_class)->finalize(obj);
-	GST_INFO("RESET DVBAUDIOSINK DONE");
+	GST_INFO("GstDVBVideoSink RESET");
 }
 
 static gint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
@@ -450,13 +448,16 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		GstFormat format;
 		gdouble rate;
 		guint64 start, end, pos;
+		gint64 start_dvb;
 		gst_event_parse_segment(event, &segment);
 		format = segment->format;
 		rate = segment->rate;
 		start = segment->start;
 		end = segment->stop;
 		pos = segment->position;
-		GST_DEBUG_OBJECT(self, "GST_EVENT_NEWSEGMENT rate=%f\n", rate);
+		start_dvb = start / 11111LL;
+		GST_INFO_OBJECT(self, "SEGMENT rate=%f format=%d start=%"G_GUINT64_FORMAT " pos=%"G_GUINT64_FORMAT, rate, format, start, pos);
+		GST_INFO_OBJECT(self, "SEGMENT DVB TIMESTAMP=%"G_GINT64_FORMAT " HEXFORMAT 0x%x", start_dvb, start_dvb);
 		if (format == GST_FORMAT_TIME)
 		{
 			self->timestamp_offset = start - pos;
@@ -1732,7 +1733,7 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 		break;
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_READY_TO_PAUSED");
-#if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
+#ifdef HAVE_DTSDOWNMIX
 		self->first_paused = TRUE;
 #endif
 		self->paused = TRUE;

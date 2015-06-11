@@ -119,7 +119,7 @@ void gst_sleepus(uint32_t usec)
 }
 
 
-#if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
+#ifdef HAVE_DTSDOWNMIX
 
 gboolean get_dtsdownmix_playing()
 {

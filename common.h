@@ -32,7 +32,7 @@ void pes_set_payload_size(size_t size, unsigned char *pes_header);
 
 void gst_sleepms(uint32_t msec);
 void gst_sleepus(uint32_t usec);
-#if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
+#ifdef HAVE_DTSDOWNMIX
 gboolean get_dtsdownmix_playing();
 gboolean get_dtsdownmix_pause();
 #endif
