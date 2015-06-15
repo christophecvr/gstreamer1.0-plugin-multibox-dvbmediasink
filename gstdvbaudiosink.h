@@ -128,7 +128,12 @@ struct _GstDVBAudioSink
 	GstClockTime timestamp;
 	gdouble rate;
 	gboolean playing, paused, flushing, unlocking;
-	gboolean pts_written, first_paused, dts_downmix_playing;
+	gboolean pts_written, first_paused ;
+	gboolean first_unpaused, flushed ;
+#ifdef HAVE_DTSDOWNMIX
+	/* enumeration val. NONE (0) , PAUSED (1), PLAYING (2) */
+	t_dtsdownmix_state dtsdownmix_state;
+#endif
 	gint64 lastpts;
 	gint64 timestamp_offset;
 	gint8 ok_to_write;

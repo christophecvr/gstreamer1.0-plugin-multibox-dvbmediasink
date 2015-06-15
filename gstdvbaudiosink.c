@@ -259,7 +259,6 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 	self->cache = NULL;
 	self->playing = self->flushing = self->unlocking = self->paused = FALSE;
 	self->pts_written = FALSE;
-	self->dts_downmix_playing = FALSE;
 	self->lastpts = 0;
 	self->timestamp_offset = 0;
 	self->queue = NULL;
@@ -706,6 +705,14 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 	switch (GST_EVENT_TYPE(event))
 	{
 	case GST_EVENT_FLUSH_START:
+#ifdef HAVE_DTSDOWNMIX
+		if(self->flushed && !self->playing && self->dtsdownmix_state == PLAYING)
+		{ 
+			self->playing = TRUE;
+			self->ok_to_write = 1;
+		}
+		self->flushed = FALSE;
+#endif
 		self->flushing = TRUE;
 		/* wakeup the poll */
 		write(self->unlockfd[1], "\x01", 1);
@@ -728,6 +735,14 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		}
 		GST_OBJECT_UNLOCK(self);
 		if(self->paused) ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+#ifdef HAVE_DTSDOWNMIX
+		if(self->dtsdownmix_state == PLAYING)
+		{
+			self->playing = FALSE;
+			self->ok_to_write = 0;
+		}
+		self->flushed = TRUE;
+#endif
 		break;
 	case GST_EVENT_EOS:
 	{
@@ -839,6 +854,15 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		{
 			//GST_INFO_OBJECT(self,"CAPS %"GST_PTR_FORMAT, caps);
 			ret = gst_dvbaudiosink_set_caps(sink, caps);
+			gst_caps_unref(caps);
+		}
+		if (ret)
+		{
+			ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+		}
+		else
+		{
+			gst_event_unref(event);
 		}
 		break;
 	}
@@ -1185,20 +1209,31 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 	/* WAITING ON DTS DECODER TO RUN LOOP WILL EXIT IF SOMETHING IS GOING WRONG */
 	while (self->ok_to_write == 0)
 	{
-		if(!get_dtsdownmix_playing() && i < 200)
+		if(self->dtsdownmix_state == PAUSED)
 		{
-			i++;
+			if(!get_dtsdownmix_playing() && i < 200)
+			{
+				i++;
+			}
+			else
+			{
+				if (self->fd >= 0) {ioctl(self->fd, AUDIO_CONTINUE);}
+				if(self->first_paused) {self->first_paused = FALSE;}
+				self->paused = FALSE;
+				self->playing = TRUE;
+				self->ok_to_write = 1;
+				self->dtsdownmix_state = PLAYING;
+				GST_INFO_OBJECT(self,"DTSDECODER OK AUDIO CONTINUES tries = %d", i);
+				i = 0;
+			}
 		}
 		else
 		{
-			if (self->fd >= 0) {ioctl(self->fd, AUDIO_CONTINUE);}
-			if(self->first_paused) {self->first_paused = FALSE;}
-			self->paused = FALSE;
-			self->playing = TRUE;
+			self->flushed = FALSE;
 			self->ok_to_write = 1;
-			self->dts_downmix_playing = TRUE;
-			GST_INFO_OBJECT(self,"DTSDECODER OK AUDIO CONTINUES tries = %d", i);
-			i = 0;
+			gst_sleepms(2000);
+			self->playing = TRUE;
+			GST_INFO_OBJECT(self,"RESUME PLAY AFTER FLUSH + 2 SECONDS");
 		}
 	}
 #endif
@@ -1420,7 +1455,9 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 	case GST_STATE_CHANGE_NULL_TO_READY:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_NULL_TO_READY");
 		self->ok_to_write = 1;
+		self->first_unpaused = FALSE;
 #ifdef HAVE_DTSDOWNMIX
+		self->dtsdownmix_state = NONE;
 		f = fopen("/tmp/dtsdownmix", "w");
 		if (f)
 		{
@@ -1430,6 +1467,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 #endif
 		break;
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
+		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_READY_TO_PAUSED");
 		self->paused = TRUE;
 		self->first_paused = TRUE;
 #ifdef HAVE_DTSDOWNMIX
@@ -1440,6 +1478,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 				ioctl(self->fd, AUDIO_SELECT_SOURCE, AUDIO_SOURCE_MEMORY);
 				ioctl(self->fd, AUDIO_PAUSE);
 			}
+			self->dtsdownmix_state = PAUSED;
 			GST_INFO_OBJECT(self,"USING DTS_DOWNMIX");
 		}
 		else
@@ -1461,20 +1500,21 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 #ifdef HAVE_DTSDOWNMIX
-		if (!get_dtsdownmix_playing() && get_dtsdownmix_pause())
+		if (self->dtsdownmix_state == PAUSED)
 		{
 			if(self->first_paused)
 			{
 				if (self->fd >= 0) {ioctl(self->fd, AUDIO_CONTINUE);}
+				self->dtsdownmix_state = PLAYING;
 			    self->playing = TRUE;
 				self->ok_to_write = 1;
-				self->dts_downmix_playing = TRUE;
 				self->paused = FALSE;
-				/*waiting 3 seconds until enigma2 is ready.
+				/*waiting 2 seconds until enigma2 is ready.
 				Needed by dtsdownmix to have the audio track selected
 				before audio is launched*/
-				gst_sleepms(3000);
-				GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING FIRST UNPAUSED WAITED ON ENIGMA TAGS");
+				gst_sleepms(2000);
+				GST_INFO_OBJECT(self,"PAUSED_TO_PLAYING FIRST UNPAUSED WAITED 2 SECONDS FOR ENIGMA2");
+				self->first_unpaused = TRUE;
 			}
 			else
 			{
@@ -1514,9 +1554,9 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		/* wakeup the poll */
 		write(self->unlockfd[1], "\x01", 1);
 #ifdef HAVE_DTSDOWNMIX
-		if(get_dtsdownmix_playing())
+		if(self->dtsdownmix_state == PLAYING)
 		{
-			self->dts_downmix_playing = FALSE;
+			self->dtsdownmix_state = PAUSED;
 			self->first_paused = FALSE;
 			self->playing = FALSE;
 			f = fopen("/tmp/dtsdownmix", "w");
@@ -1546,6 +1586,12 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 			fclose(f);
 		}
 #endif
+		f = fopen("/tmp/servicemp3_state", "w");
+		if(f)
+		{
+			fprintf(f, "NONE\n");
+			fclose(f);
+		}
 		break;
 	default:
 		break;

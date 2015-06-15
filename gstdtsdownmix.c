@@ -874,13 +874,11 @@ static gboolean gst_dtsdownmix_sink_event(GstAudioDecoder * dec , GstEvent * sin
 			//GST_INFO_OBJECT(dts,"TAG %"GST_PTR_FORMAT, taglist);
 			if (GST_AUDIO_DECODER_SRC_PAD(dts) && dts->stream_started == 2)
 			{
-				//GST_INFO_OBJECT(dts,"src_pad OK TAG %"GST_PTR_FORMAT, taglist);
 				gst_audio_decoder_merge_tags(dec, taglist, GST_TAG_MERGE_REPLACE);
 				gst_event_unref(sink_event);
 			}
 			else
 			{
-				//GST_INFO_OBJECT(dts,"src_pad NOK TAG %"GST_PTR_FORMAT, taglist);
 				gst_audio_decoder_merge_tags(dec, taglist, GST_TAG_MERGE_KEEP_ALL);
 				gst_event_unref(sink_event);
 			}

@@ -32,7 +32,17 @@ void pes_set_payload_size(size_t size, unsigned char *pes_header);
 
 void gst_sleepms(uint32_t msec);
 void gst_sleepus(uint32_t usec);
+gboolean get_servicemp3_playing();
+gboolean get_servicemp3_paused();
+gboolean get_servicemp3_ready();
 #ifdef HAVE_DTSDOWNMIX
+/* enumeration dtsdownmix_state */
+typedef enum downmix_state
+{
+	NONE=0,
+	PAUSED=1,
+	PLAYING=2,
+} t_dtsdownmix_state;
 gboolean get_dtsdownmix_playing();
 gboolean get_dtsdownmix_pause();
 #endif

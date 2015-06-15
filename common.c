@@ -118,7 +118,6 @@ void gst_sleepus(uint32_t usec)
 	errno = olderrno;
 }
 
-
 #ifdef HAVE_DTSDOWNMIX
 
 gboolean get_dtsdownmix_playing()

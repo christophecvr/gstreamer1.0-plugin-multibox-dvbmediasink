@@ -381,6 +381,14 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 	switch (GST_EVENT_TYPE (event))
 	{
 	case GST_EVENT_FLUSH_START:
+#ifdef HAVE_DTSDOWNMIX
+		if(self->flushed && !self->playing && self->dtsdownmix_state == PLAYING)
+		{ 
+			self->playing = TRUE;
+			self->ok_to_write = 1;
+		}
+		self->flushed = FALSE;
+#endif
 		self->flushing = TRUE;
 		/* wakeup the poll */
 		write(self->unlockfd[1], "\x01", 1);
@@ -397,6 +405,14 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		self->flushing = FALSE;
 		GST_OBJECT_UNLOCK(self);
 		if(self->paused) ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+#ifdef HAVE_DTSDOWNMIX
+		if(self->dtsdownmix_state == PLAYING)
+		{
+			self->playing = FALSE;
+			self->ok_to_write = 0;
+		}
+		self->flushed = TRUE;
+#endif
 		break;
 	case GST_EVENT_EOS:
 	{
@@ -676,6 +692,17 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 	{
 		return GST_FLOW_OK;
 	}
+#ifdef HAVE_DTSDOWNMIX
+	/* WAIT 1 second after flush needed for enigma2 to be ready*/
+	while (self->ok_to_write == 0)
+	{
+			self->flushed = FALSE;
+			self->ok_to_write = 1;
+			gst_sleepms(2000);
+			self->playing = TRUE;
+			GST_INFO_OBJECT(self,"RESUME PLAY AFTER FLUSH + 2 SECONDS");
+	}
+#endif
 	GstMapInfo map, pesheadermap, codecdatamap;
 	gst_buffer_map(buffer, &map, GST_MAP_READ);
 	original_data = data = map.data;
@@ -1730,11 +1757,18 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 	{
 	case GST_STATE_CHANGE_NULL_TO_READY:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_NULL_TO_READY");
+		self->ok_to_write = 1;
+#ifdef HAVE_DTSDOWNMIX
+		self->dtsdownmix_state = NONE;
+#endif
 		break;
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_READY_TO_PAUSED");
 #ifdef HAVE_DTSDOWNMIX
-		self->first_paused = TRUE;
+		if(get_dtsdownmix_pause())
+		{
+			self->dtsdownmix_state = PAUSED;
+		}
 #endif
 		self->paused = TRUE;
 		if (self->fd >= 0)
@@ -1747,6 +1781,12 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 		if (self->fd >= 0) ioctl(self->fd, VIDEO_CONTINUE);
 		self->paused = FALSE;
+#ifdef HAVE_DTSDOWNMIX
+		if(self->dtsdownmix_state == PAUSED)
+		{
+			self->dtsdownmix_state = PLAYING;
+		}
+#endif
 		break;
 	default:
 		break;
@@ -1762,6 +1802,12 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 		if (self->fd >= 0) ioctl(self->fd, VIDEO_FREEZE);
 		/* wakeup the poll */
 		write(self->unlockfd[1], "\x01", 1);
+#ifdef HAVE_DTSDOWNMIX
+		if(self->dtsdownmix_state == PLAYING)
+		{
+			self->dtsdownmix_state = PAUSED;
+		}
+#endif
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_READY:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PAUSED_TO_READY");
