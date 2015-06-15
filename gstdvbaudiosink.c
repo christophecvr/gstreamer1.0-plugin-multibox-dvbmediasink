@@ -1586,12 +1586,6 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 			fclose(f);
 		}
 #endif
-		f = fopen("/tmp/servicemp3_state", "w");
-		if(f)
-		{
-			fprintf(f, "NONE\n");
-			fclose(f);
-		}
 		break;
 	default:
 		break;
