@@ -197,22 +197,20 @@ gst_dtsdownmix_init (GstDtsDec * dtsdownmix)
 
 static void gst_dtsdownmix_dispose(GObject *obj)
 {
-	GST_INFO_OBJECT(obj,"DISPOSING DTSDOWNMIX");
 	G_OBJECT_CLASS(parent_class)->dispose(obj);
-	GST_INFO("DISPOSING DTSDOWNMIX DONE");
+	GST_INFO("GstDtsDec DISPOSED");
 }
 
 static void gst_dtsdownmix_reset(GObject *obj)
 {
-	GST_INFO_OBJECT(obj,"RESET DTSDOWNMIX");
 	G_OBJECT_CLASS(parent_class)->finalize(obj);
-	GST_INFO("RESET DTSDOWNMIX DONE");
+	GST_INFO("GstDtsDec RESET");
 }
 
 static gboolean gst_dtsdownmix_start (GstAudioDecoder * dec)
 {
 	gint64 tolerance;
-	tolerance = 25000; 
+	tolerance = 1500; 
 	gst_audio_decoder_set_tolerance(dec, tolerance);
 	GstDtsDec *dts = GST_DTSDOWNMIX (dec);
 	GstDtsDecClass *klass;
@@ -234,7 +232,6 @@ static gboolean gst_dtsdownmix_start (GstAudioDecoder * dec)
 	gint max_errors;
 	gint delay;
 	gboolean needs_format;
-	gst_audio_decoder_set_needs_format(dec, TRUE);
 	needs_format = gst_audio_decoder_get_needs_format(dec);
 	delay = gst_audio_decoder_get_delay(dec);
 	max_errors = gst_audio_decoder_get_max_errors(dec);
@@ -822,7 +819,7 @@ static gboolean gst_dtsdownmix_sink_event(GstAudioDecoder * dec , GstEvent * sin
 			GST_INFO_OBJECT(dts,"DTS GST_EVENT_STREAM_START id is %x flags: %x", stream_id, flags);
 			break;
 		}
-		/*case GST_EVENT_TOC:
+		case GST_EVENT_TOC:
 			if (GST_AUDIO_DECODER_SRC_PAD(dts))
 			{
 				ret = gst_pad_push_event(GST_AUDIO_DECODER_SRC_PAD(dts), sink_event);
@@ -831,14 +828,13 @@ static gboolean gst_dtsdownmix_sink_event(GstAudioDecoder * dec , GstEvent * sin
 			{
 				gst_event_unref(sink_event);
 			}
-			break;*/
+			break;
 		case GST_EVENT_CAPS:
 			// hack gstreamer head (1.5.1) only caps from second stream start event may(and must) be pushed to src_pad.
 			// Somewhere there is a bug but if it is gstreamer self or plugin that I don't...
 		{
 			GstCaps *caps;
 			gst_event_parse_caps(sink_event, &caps);
-			GST_INFO_OBJECT(dts,"CAPS %"GST_PTR_FORMAT, caps);
 			if (GST_AUDIO_DECODER_SRC_PAD(dts) && dts->stream_started == 2)
 			{
 				ret = gst_pad_push_event(GST_AUDIO_DECODER_SRC_PAD(dts), sink_event);
@@ -875,16 +871,14 @@ static gboolean gst_dtsdownmix_sink_event(GstAudioDecoder * dec , GstEvent * sin
 		}
 		case GST_EVENT_TAG:
 			gst_event_parse_tag(sink_event, &taglist);
-			GST_INFO_OBJECT(dts,"TAG %"GST_PTR_FORMAT, taglist);
+			//GST_INFO_OBJECT(dts,"TAG %"GST_PTR_FORMAT, taglist);
 			if (GST_AUDIO_DECODER_SRC_PAD(dts) && dts->stream_started == 2)
 			{
-				GST_INFO_OBJECT(dts,"src_pad OK TAG %"GST_PTR_FORMAT, taglist);
 				gst_audio_decoder_merge_tags(dec, taglist, GST_TAG_MERGE_REPLACE);
 				gst_event_unref(sink_event);
 			}
 			else
 			{
-				GST_INFO_OBJECT(dts,"src_pad NOK TAG %"GST_PTR_FORMAT, taglist);
 				gst_audio_decoder_merge_tags(dec, taglist, GST_TAG_MERGE_KEEP_ALL);
 				gst_event_unref(sink_event);
 			}
