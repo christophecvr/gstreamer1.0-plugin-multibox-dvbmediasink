@@ -1487,11 +1487,11 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 				self->ok_to_write = 1;
 				self->paused = FALSE;
 				self->first_paused = FALSE;
-				/*waiting 2 seconds until enigma2 is ready.
+				/*waiting 3 seconds until enigma2 is ready.
 				Needed by dtsdownmix to have the audio track selected
 				before audio is launched*/
-				gst_sleepms(2000);
-				GST_INFO_OBJECT(self,"PAUSED_TO_PLAYING FIRST UNPAUSED WAITED 2 SECONDS FOR ENIGMA2");
+				gst_sleepms(3000);
+				GST_INFO_OBJECT(self,"PAUSED_TO_PLAYING FIRST UNPAUSED WAITED 3 SECONDS FOR ENIGMA2");
 				self->first_unpaused = TRUE;
 			}
 			else
