@@ -247,7 +247,7 @@ static gboolean gst_dvbvideosink_set_caps (GstBaseSink * sink, GstCaps * caps);
 static gboolean gst_dvbvideosink_unlock (GstBaseSink * basesink);
 static gboolean gst_dvbvideosink_unlock_stop (GstBaseSink * basesink);
 static GstStateChangeReturn gst_dvbvideosink_change_state (GstElement * element, GstStateChange transition);
-static gint64 gst_dvbvideosink_get_decoder_time (GstDVBVideoSink *self);
+static guint64 gst_dvbvideosink_get_decoder_time (GstDVBVideoSink *self);
 
 /* initialize the plugin's class */
 static void gst_dvbvideosink_class_init(GstDVBVideoSinkClass *self)
@@ -334,9 +334,9 @@ static void gst_dvbvideosink_reset(GObject *obj)
 	GST_INFO("GstDVBVideoSink RESET");
 }
 
-static gint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
+static guint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
 {
-	gint64 cur = 0;
+	guint64 cur = 0;
 	if (self->fd < 0 || !self->playing || !self->pts_written) return GST_CLOCK_TIME_NONE;
 
 	ioctl(self->fd, VIDEO_GET_PTS, &cur);
@@ -349,7 +349,8 @@ static gint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
 		cur = self->lastpts;
 	}
 	cur *= 11111;
-	cur -= self->timestamp_offset;
+	if(cur >= self->timestamp_offset)
+		cur -= self->timestamp_offset;
 
 	return cur;
 }
@@ -494,18 +495,7 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 				self->rate = rate;
 			}
 		}
-		break;
-	}
-	case GST_EVENT_CAPS:
-	{
-		GstCaps *caps;
-		gst_event_parse_caps(event, &caps);
-		if (caps)
-		{
-            self->must_send_header = TRUE;
-			ret = gst_dvbvideosink_set_caps(sink, caps);
-			gst_caps_unref(caps);
-		}
+		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		break;
 	}
 	default:
@@ -693,14 +683,14 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 		return GST_FLOW_OK;
 	}
 #ifdef HAVE_DTSDOWNMIX
-	/* WAIT 1 second after flush needed for enigma2 to be ready*/
+	/* WAIT 1 seconds after flush needed for enigma2 to be ready*/
 	while (self->ok_to_write == 0)
 	{
 			self->flushed = FALSE;
 			self->ok_to_write = 1;
-			gst_sleepms(2000);
 			self->playing = TRUE;
-			GST_INFO_OBJECT(self,"RESUME PLAY AFTER FLUSH + 2 SECONDS");
+			gst_sleepms(1000);
+			GST_INFO_OBJECT(self,"RESUME PLAY AFTER FLUSH + 1 SECONDS");
 	}
 #endif
 	GstMapInfo map, pesheadermap, codecdatamap;
@@ -1214,6 +1204,7 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 	GstStructure *structure = gst_caps_get_structure (caps, 0);
 	const char *mimetype = gst_structure_get_name (structure);
 	self->stream_type = STREAMTYPE_UNKNOWN;
+	self->must_send_header = TRUE;
 
 	GST_INFO_OBJECT (self, "caps = %" GST_PTR_FORMAT, caps);
 
@@ -1784,6 +1775,7 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 #ifdef HAVE_DTSDOWNMIX
 		if(self->dtsdownmix_state == PAUSED)
 		{
+			self->use_dts = TRUE;
 			self->dtsdownmix_state = PLAYING;
 		}
 #endif

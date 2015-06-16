@@ -200,7 +200,7 @@ static gboolean gst_dvbaudiosink_unlock_stop(GstBaseSink * basesink);
 static gboolean gst_dvbaudiosink_set_caps(GstBaseSink * sink, GstCaps * caps);
 static GstCaps *gst_dvbaudiosink_get_caps(GstBaseSink *basesink, GstCaps *filter);
 static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement * element, GstStateChange transition);
-static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self);
+static guint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self);
 
 /* initialize the plugin's class */
 static void gst_dvbaudiosink_class_init(GstDVBAudioSinkClass *self)
@@ -267,7 +267,6 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 	self->rate = 1.0;
 	self->timestamp = GST_CLOCK_TIME_NONE;
 
-	//gst_base_sink_set_render_delay(GST_BASE_SINK(self), 15000);
 	gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
 	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), TRUE);
 }
@@ -284,9 +283,9 @@ static void gst_dvbaudiosink_reset(GObject *obj)
 	GST_INFO("GstDVBAudioSink RESET");
 }
 
-static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
+static guint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
 {
-	gint64 cur = 0;
+	guint64 cur = 0;
 	if (self->fd < 0 || !self->playing || !self->pts_written){return GST_CLOCK_TIME_NONE;}
 
 	ioctl(self->fd, AUDIO_GET_PTS, &cur);
@@ -299,7 +298,8 @@ static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
 		cur = self->lastpts;
 	}
 	cur *= 11111;
-	cur -= self->timestamp_offset;
+	if(cur >= self->timestamp_offset)
+		cur -= self->timestamp_offset;
 
 	return cur;
 }
@@ -792,7 +792,7 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		const GstSegment *segment;
 		GstFormat format;
 		gdouble rate;
-		guint64 start, end, pos ;
+		guint64 start, end, pos;
 		gint64 start_dvb;
 		gst_event_parse_segment(event, &segment);
 		format = segment->format;
@@ -803,16 +803,12 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		start_dvb = start / 11111LL;
 		GST_INFO_OBJECT(self, "GST_EVENT_SEGMENT rate=%f format=%d start=%"G_GUINT64_FORMAT " position=%"G_GUINT64_FORMAT, rate, format, start, pos);
 		GST_INFO_OBJECT(self, "SEGMENT DVB TIMESTAMP=%"G_GINT64_FORMAT " HEXFORMAT 0x%x", start_dvb, start_dvb);
-        /* fixme on dreambox this does not work att all and I gues on any box*/
-		/* the video0 can't be opened since its in use */
-		/* The try off opening video0 makes sync issues worse than they already are */
-		if (format == GST_FORMAT_TIME)
+ 		if (format == GST_FORMAT_TIME)
 		{
 			self->timestamp_offset = start - pos;
+
 			if (rate != self->rate)
 			{
-				/* IS THIS NEEDED ? it really does not work on the contrary it increase the time*/
-				/* before sync is back ok after pause fast forward or backwards */
 				int video_fd = open("/dev/dvb/adapter0/video0", O_RDWR);
 				if (video_fd >= 0)
 				{
@@ -843,26 +839,6 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		else
 		{
 			ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
-		}
-		break;
-	}
- 	case GST_EVENT_CAPS:
-	{
-		GstCaps *caps;
-		gst_event_parse_caps(event, &caps);
-		if (caps)
-		{
-			//GST_INFO_OBJECT(self,"CAPS %"GST_PTR_FORMAT, caps);
-			ret = gst_dvbaudiosink_set_caps(sink, caps);
-			gst_caps_unref(caps);
-		}
-		if (ret)
-		{
-			ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
-		}
-		else
-		{
-			gst_event_unref(event);
 		}
 		break;
 	}
@@ -1229,11 +1205,12 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 		}
 		else
 		{
+			/* wait 1 seconds after flush and new segment */
 			self->flushed = FALSE;
 			self->ok_to_write = 1;
-			gst_sleepms(2000);
 			self->playing = TRUE;
-			GST_INFO_OBJECT(self,"RESUME PLAY AFTER FLUSH + 2 SECONDS");
+			gst_sleepms(1000);
+			GST_INFO_OBJECT(self,"RESUME PLAY AFTER FLUSH + 1 SECONDS");
 		}
 	}
 #endif
@@ -1509,6 +1486,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 			    self->playing = TRUE;
 				self->ok_to_write = 1;
 				self->paused = FALSE;
+				self->first_paused = FALSE;
 				/*waiting 2 seconds until enigma2 is ready.
 				Needed by dtsdownmix to have the audio track selected
 				before audio is launched*/
