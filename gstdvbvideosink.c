@@ -247,7 +247,7 @@ static gboolean gst_dvbvideosink_set_caps (GstBaseSink * sink, GstCaps * caps);
 static gboolean gst_dvbvideosink_unlock (GstBaseSink * basesink);
 static gboolean gst_dvbvideosink_unlock_stop (GstBaseSink * basesink);
 static GstStateChangeReturn gst_dvbvideosink_change_state (GstElement * element, GstStateChange transition);
-static guint64 gst_dvbvideosink_get_decoder_time (GstDVBVideoSink *self);
+static gint64 gst_dvbvideosink_get_decoder_time (GstDVBVideoSink *self);
 
 /* initialize the plugin's class */
 static void gst_dvbvideosink_class_init(GstDVBVideoSinkClass *self)
@@ -334,9 +334,9 @@ static void gst_dvbvideosink_reset(GObject *obj)
 	GST_INFO("GstDVBVideoSink RESET");
 }
 
-static guint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
+static gint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
 {
-	guint64 cur = 0;
+	gint64 cur = 0;
 	if (self->fd < 0 || !self->playing || !self->pts_written) return GST_CLOCK_TIME_NONE;
 
 	ioctl(self->fd, VIDEO_GET_PTS, &cur);
@@ -349,8 +349,7 @@ static guint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
 		cur = self->lastpts;
 	}
 	cur *= 11111;
-	if(cur >= self->timestamp_offset)
-		cur -= self->timestamp_offset;
+	cur -= self->timestamp_offset;
 
 	return cur;
 }
@@ -376,7 +375,7 @@ static gboolean gst_dvbvideosink_unlock_stop(GstBaseSink *basesink)
 static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 {
 	GstDVBVideoSink *self = GST_DVBVIDEOSINK (sink);
-	GST_DEBUG_OBJECT (self, "EVENT %s", gst_event_type_get_name(GST_EVENT_TYPE (event)));
+	GST_INFO_OBJECT (self, "EVENT %s", gst_event_type_get_name(GST_EVENT_TYPE (event)));
 	int ret = TRUE;
 
 	switch (GST_EVENT_TYPE (event))
@@ -474,7 +473,7 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		pos = segment->position;
 		start_dvb = start / 11111LL;
 		GST_INFO_OBJECT(self, "SEGMENT rate=%f format=%d start=%"G_GUINT64_FORMAT " pos=%"G_GUINT64_FORMAT, rate, format, start, pos);
-		GST_INFO_OBJECT(self, "SEGMENT DVB TIMESTAMP=%"G_GINT64_FORMAT " HEXFORMAT 0x%x", start_dvb, start_dvb);
+		GST_INFO_OBJECT(self, "SEGMENT DVB TIMESTAMP=%"G_GINT64_FORMAT " HEXFORMAT %#"G_GINT64_MODIFIER "x", start_dvb, start_dvb);
 		if (format == GST_FORMAT_TIME)
 		{
 			self->timestamp_offset = start - pos;
@@ -495,6 +494,45 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 				self->rate = rate;
 			}
 		}
+		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+		break;
+	}
+	case GST_EVENT_TAG:
+	{
+		GstTagList *taglist;
+		gst_event_parse_tag(event, &taglist);
+		GST_INFO_OBJECT(self,"TAG %"GST_PTR_FORMAT, taglist);
+		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+		break;
+	}
+	case GST_EVENT_TOC:
+	{
+		GstToc *toc;
+		gboolean updated;
+		gst_event_parse_toc (event, &toc, &updated);
+		/* get toc entries info if updated */
+		GList *i = NULL;
+		for (i = gst_toc_get_entries(toc); i; i = i->next)
+		{
+			GstTocEntry *entry = (GstTocEntry*)(i->data);
+			GST_INFO_OBJECT(self,"Toc entry_type %s", gst_toc_entry_type_get_nick(gst_toc_entry_get_entry_type (entry)));
+			GList *x = NULL;
+			for (x = gst_toc_entry_get_sub_entries (entry); x; x = x->next)
+			{
+				GstTocEntry *sub_entry = (GstTocEntry*)(x->data);
+				GstTagList *tags = gst_toc_entry_get_tags(sub_entry);
+				gint64 start = 0;
+				gint64 stop = 0;
+				gst_toc_entry_get_start_stop_times(sub_entry, &start, &stop);
+				gchar *title;
+				gst_tag_list_get_string (tags, "title", &title);
+				GST_INFO_OBJECT(self,"%s start=%"G_GINT64_FORMAT " stop=%"G_GINT64_FORMAT,
+								 title, start, stop);
+				g_free(title);
+			}
+		}
+		GstTocScope scope = gst_toc_get_scope(toc);
+		GST_INFO_OBJECT(self,"TOC  scope=%d", scope);
 		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		break;
 	}

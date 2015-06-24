@@ -144,7 +144,7 @@ struct _GstDVBAudioSink
 struct _GstDVBAudioSinkClass
 {
 	GstBaseSinkClass parent_class;
-	guint64 (*get_decoder_time) (GstDVBAudioSink *sink);
+	gint64 (*get_decoder_time) (GstDVBAudioSink *sink);
 };
 
 GType gst_dvbaudiosink_get_type (void);
