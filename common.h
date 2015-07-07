@@ -36,16 +36,8 @@ void gst_sleepus(uint32_t usec);
 gboolean get_servicemp3_playing();
 gboolean get_servicemp3_paused();
 gboolean get_servicemp3_ready();
-#ifdef HAVE_DTSDOWNMIX
-/* enumeration dtsdownmix_state */
-typedef enum downmix_state
-{
-	NONE=0,
-	PAUSED=1,
-	PLAYING=2,
-} t_dtsdownmix_state;
-gboolean get_dtsdownmix_playing();
-gboolean get_dtsdownmix_pause();
-#endif
+gboolean get_servicemp3_state_none();
+gboolean get_downmix_setting();
+gboolean get_downmix_ready();
 
 #endif

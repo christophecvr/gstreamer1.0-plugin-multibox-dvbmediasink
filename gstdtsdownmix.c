@@ -112,7 +112,6 @@ static gboolean gst_dtsdownmix_sink_event(GstAudioDecoder * dec , GstEvent * sin
 static gboolean gst_dtsdownmix_src_event(GstAudioDecoder * dec , GstEvent * src_event);
 static GstStateChangeReturn gst_dtsdownmix_change_state(GstElement * dec, GstStateChange transition);
 static GstElementClass *parent_class = NULL;
-static gboolean get_downmix_setting();
 
 static void
 gst_dtsdownmix_class_init (GstDtsDecClass * klass)
@@ -768,21 +767,6 @@ gst_dtsdownmix_get_property (GObject * object, guint prop_id, GValue * value,
   }
 }
 
-
-
-static gboolean get_downmix_setting()
-{
-	FILE *f;
-	char buffer[32] = {0};
-	f = fopen("/proc/stb/audio/ac3", "r");
-	if (f)
-	{
-		fread(buffer, sizeof(buffer), 1, f);
-		fclose(f);
-	}
-	return !strncmp(buffer, "downmix", 7);
-}
-
 static gboolean gst_dtsdownmix_sink_event(GstAudioDecoder * dec , GstEvent * sink_event)
 {
 	GstDtsDec *dts = GST_DTSDOWNMIX (dec);
@@ -941,26 +925,19 @@ static GstStateChangeReturn gst_dtsdownmix_change_state(GstElement * element, Gs
 				dts->state = NULL;
 				return GST_STATE_CHANGE_FAILURE;
 			}
-			dts->ready_null = FALSE;
+			f = fopen("/tmp/dtsdownmix", "w");
+			if (f)
+			{
+				fprintf(f,"READY\n");
+				fclose(f);
+			}
 			break;
 		case GST_STATE_CHANGE_READY_TO_PAUSED:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_READY_TO_PAUSED");
 			dts->first_paused = TRUE;
-			f = fopen("/tmp/dtsdownmix", "w");
-			if (f)
-			{
-				fprintf(f,"PAUSE\n");
-				fclose(f);
-			}
 			break;
 		case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PAUSED_TO_PLAYING");
-			f = fopen("/tmp/dtsdownmix", "w");
-			if (f)
-			{
-				fprintf(f,"PLAYING\n");
-				fclose(f);
-			}
 			break;
 		default:
 			break;
@@ -970,25 +947,19 @@ static GstStateChangeReturn gst_dtsdownmix_change_state(GstElement * element, Gs
 	{
 		case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PLAYING_TO_PAUSED");
-			f = fopen("/tmp/dtsdownmix", "w");
-			if (f)
-			{
-				fprintf(f,"PAUSE\n");
-				fclose(f);
-			}
 			dts->first_paused = FALSE;
 			break;
 		case GST_STATE_CHANGE_PAUSED_TO_READY:
 			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_PAUSED_TO_READY Nr %d", transition);
+			break;
+		case GST_STATE_CHANGE_READY_TO_NULL:
+			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_READY_TO_NULL Nr %d", transition);
 			f = fopen("/tmp/dtsdownmix", "w");
 			if (f)
 			{
 				fprintf(f,"NONE\n");
 				fclose(f);
 			}
-			break;
-		case GST_STATE_CHANGE_READY_TO_NULL:
-			GST_INFO_OBJECT(dts, "GST_STATE_CHANGE_READY_TO_NULL Nr %d", transition);
 			break;
 		default:
 			break;

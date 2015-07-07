@@ -119,14 +119,28 @@ void gst_sleepus(uint32_t usec)
 	errno = olderrno;
 }
 
-#ifdef HAVE_DTSDOWNMIX
 
-gboolean get_dtsdownmix_playing()
+gboolean get_servicemp3_state_none()
 {
 	gboolean ret = FALSE;
 	FILE *f;
 	char buffer[10] = {0};
-	f = fopen("/tmp/dtsdownmix", "r");
+	f = fopen("/tmp/servicemp3_state", "r");
+	if (f)
+	{
+		fread(buffer, sizeof(buffer), 1, f);
+		fclose(f);
+	}
+	ret = !strncmp(buffer, "NONE", 4);
+	return ret;
+}
+
+gboolean get_servicemp3_state_playing()
+{
+	gboolean ret = FALSE;
+	FILE *f;
+	char buffer[10] = {0};
+	f = fopen("/tmp/servicemp3_state", "r");
 	if (f)
 	{
 		fread(buffer, sizeof(buffer), 1, f);
@@ -136,21 +150,62 @@ gboolean get_dtsdownmix_playing()
 	return ret;
 }
 
-gboolean get_dtsdownmix_pause()
+gboolean get_servicemp3_state_ready()
 {
-	FILE *f;
 	gboolean ret = FALSE;
+	FILE *f;
 	char buffer[10] = {0};
+	f = fopen("/tmp/servicemp3_state", "r");
+	if (f)
+	{
+		fread(buffer, sizeof(buffer), 1, f);
+		fclose(f);
+	}
+	ret = !strncmp(buffer, "READY", 5);
+	return ret;
+}
+
+gboolean get_servicemp3_state_paused()
+{
+	gboolean ret = FALSE;
+	FILE *f;
+	char buffer[10] = {0};
+	f = fopen("/tmp/servicemp3_state", "r");
+	if (f)
+	{
+		fread(buffer, sizeof(buffer), 1, f);
+		fclose(f);
+	}
+	ret = !strncmp(buffer, "PAUSED", 6);
+	return ret;
+}
+
+gboolean get_downmix_setting()
+{
+	gboolean ret = FALSE;
+	FILE *f;
+	char buffer[32] = {0};
+	f = fopen("/proc/stb/audio/ac3", "r");
+	if (f)
+	{
+		fread(buffer, sizeof(buffer), 1, f);
+		fclose(f);
+	}
+	ret = !strncmp(buffer, "downmix", 7);
+	return ret;
+}
+
+gboolean get_downmix_ready()
+{
+	gboolean ret = FALSE;
+	FILE *f;
+	char buffer[32] = {0};
 	f = fopen("/tmp/dtsdownmix", "r");
 	if (f)
 	{
 		fread(buffer, sizeof(buffer), 1, f);
 		fclose(f);
 	}
-	if(!strncmp(buffer, "PAUSE", 5))
-	{
-		ret = TRUE;
-	}
+	ret = !strncmp(buffer, "READY", 5);
 	return ret;
 }
-#endif

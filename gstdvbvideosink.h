@@ -126,11 +126,8 @@ struct _GstDVBVideoSink
 	char saved_fallback_framerate[16];
 
 	gdouble rate;
-	gboolean playing, paused, flushing, unlocking, flushed;
-#ifdef HAVE_DTSDOWNMIX
-	/* enumeration val. NONE (0) , PAUSED (1), PLAYING (2) */
-	t_dtsdownmix_state dtsdownmix_state;
-#endif
+	gboolean playing, paused, flushing, unlocking, flushed, first_paused, m_paused;
+	gboolean using_dts_downmix;
 	gboolean pts_written;
 	gint64 lastpts;
 	gint64 timestamp_offset;
