@@ -1192,46 +1192,15 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 	buffersize = gst_buffer_get_size(buffer);
 	GstClockTime timestamp = GST_BUFFER_PTS(buffer);
 	gint i = 0;
-	/* launching audio after paused wait on enigma2 */
-	if(self->m_paused)
-	{
-		while (!get_servicemp3_state_playing() && i < 20000)
-		{
-			i++;
-		}
-		if (self->fd >= 0) {ioctl(self->fd, AUDIO_CONTINUE);}
-		self->paused = FALSE;
-		self->playing = TRUE;
-		self->m_paused = FALSE;
-		GST_INFO_OBJECT(self,"AUDIO CONTINUES cycles %d", i);
-
-	}
 	if (self->ok_to_write == 0)
 	{
-		/* wait 1,5 seconds after flush and new segment */
+		/* wait 1 seconds after flush and new segment */
 		self->flushed = FALSE;
 		self->ok_to_write = 1;
 		self->playing = TRUE;
-		gst_sleepms(1500);
-		GST_INFO_OBJECT(self,"RESUME PLAY AFTER FLUSH + 1,5 SECONDS");
+		gst_sleepms(1000);
+		GST_INFO_OBJECT(self,"RESUME PLAY AFTER FLUSH + 1 SECOND");
 	}
-	/*** wait on enigma2 to be ready before rendering af play start unpause **/
-	if (!get_servicemp3_state_none() && self->paused && !self->m_paused)
-	{
-		while (!get_servicemp3_state_playing() && i < 20000)
-		{
-			i++;
-		}
-		if (self->fd >= 0) {ioctl(self->fd, AUDIO_CONTINUE);}
-		self->paused = FALSE;
-		self->playing = TRUE;
-	}
-	if (i > 0)
-	{
-		GST_INFO_OBJECT(self,"PLAY AFTER UNPAUSED ENIGMA cycles %d", i);
-		i = 0;
-	}
-
 	if (self->bypass <= AUDIOTYPE_UNKNOWN)
 	{
 		GST_ELEMENT_ERROR(self, STREAM, FORMAT,(NULL), ("hardware decoder not setup (no caps in pipeline?)"));
@@ -1464,14 +1433,25 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 		if(!self->m_paused) // first play all boxes
 		{
-			self->playing = FALSE;
-			self->paused = TRUE;
+			if (self->fd >= 0) ioctl(self->fd, AUDIO_CONTINUE);
+			self->playing = TRUE;
+			self->paused = FALSE;
+			/* audio start delay required by external plugins */
+			/* Enigma2 takes more time to be ready */
+			/* now I only added it for the case use off dtsdownmix */
+			/* Cd will come */
+			if(self->using_dts_downmix)
+			{
+				gint i = 0;
+				GST_INFO_OBJECT(self,"PAUSE TO PLAY AT START 3 seconds delay");
+				gst_sleepms(3000);
+			}
 		}
 		else // standard unpause all boxes
 		{
-			GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING WAITING ON DTS DECODER");
-			self->playing = FALSE;
-			self->paused = TRUE;
+			if (self->fd >= 0) ioctl(self->fd, AUDIO_CONTINUE);
+			self->playing = TRUE;
+			self->paused = FALSE;
 		}
 		break;
 	default:
