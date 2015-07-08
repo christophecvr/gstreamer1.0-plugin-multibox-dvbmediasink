@@ -119,38 +119,32 @@ void gst_sleepus(uint32_t usec)
 	errno = olderrno;
 }
 
-#ifdef HAVE_DTSDOWNMIX
-
-gboolean get_dtsdownmix_playing()
+gboolean get_downmix_setting()
 {
 	gboolean ret = FALSE;
 	FILE *f;
-	char buffer[10] = {0};
+	char buffer[32] = {0};
+	f = fopen("/proc/stb/audio/ac3", "r");
+	if (f)
+	{
+		fread(buffer, sizeof(buffer), 1, f);
+		fclose(f);
+	}
+	ret = !strncmp(buffer, "downmix", 7);
+	return ret;
+}
+
+gboolean get_downmix_ready()
+{
+	gboolean ret = FALSE;
+	FILE *f;
+	char buffer[32] = {0};
 	f = fopen("/tmp/dtsdownmix", "r");
 	if (f)
 	{
 		fread(buffer, sizeof(buffer), 1, f);
 		fclose(f);
 	}
-	ret = !strncmp(buffer, "PLAYING", 7);
+	ret = !strncmp(buffer, "READY", 5);
 	return ret;
 }
-
-gboolean get_dtsdownmix_pause()
-{
-	FILE *f;
-	gboolean ret = FALSE;
-	char buffer[10] = {0};
-	f = fopen("/tmp/dtsdownmix", "r");
-	if (f)
-	{
-		fread(buffer, sizeof(buffer), 1, f);
-		fclose(f);
-	}
-	if(!strncmp(buffer, "PAUSE", 5))
-	{
-		ret = TRUE;
-	}
-	return ret;
-}
-#endif
