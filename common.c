@@ -119,67 +119,6 @@ void gst_sleepus(uint32_t usec)
 	errno = olderrno;
 }
 
-
-gboolean get_servicemp3_state_none()
-{
-	gboolean ret = FALSE;
-	FILE *f;
-	char buffer[10] = {0};
-	f = fopen("/tmp/servicemp3_state", "r");
-	if (f)
-	{
-		fread(buffer, sizeof(buffer), 1, f);
-		fclose(f);
-	}
-	ret = !strncmp(buffer, "NONE", 4);
-	return ret;
-}
-
-gboolean get_servicemp3_state_playing()
-{
-	gboolean ret = FALSE;
-	FILE *f;
-	char buffer[10] = {0};
-	f = fopen("/tmp/servicemp3_state", "r");
-	if (f)
-	{
-		fread(buffer, sizeof(buffer), 1, f);
-		fclose(f);
-	}
-	ret = !strncmp(buffer, "PLAYING", 7);
-	return ret;
-}
-
-gboolean get_servicemp3_state_ready()
-{
-	gboolean ret = FALSE;
-	FILE *f;
-	char buffer[10] = {0};
-	f = fopen("/tmp/servicemp3_state", "r");
-	if (f)
-	{
-		fread(buffer, sizeof(buffer), 1, f);
-		fclose(f);
-	}
-	ret = !strncmp(buffer, "READY", 5);
-	return ret;
-}
-
-gboolean get_servicemp3_state_paused()
-{
-	gboolean ret = FALSE;
-	FILE *f;
-	char buffer[10] = {0};
-	f = fopen("/tmp/servicemp3_state", "r");
-	if (f)
-	{
-		fread(buffer, sizeof(buffer), 1, f);
-		fclose(f);
-	}
-	ret = !strncmp(buffer, "PAUSED", 6);
-	return ret;
-}
-
 gboolean get_downmix_setting()
 {
 	gboolean ret = FALSE;

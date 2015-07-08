@@ -728,24 +728,8 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 			self->flushed = FALSE;
 			self->ok_to_write = 1;
 			self->playing = TRUE;
-			gst_sleepms(1500);
-			GST_INFO_OBJECT(self,"RESUME PLAY AFTER FLUSH + 1,5 SECONDS");
-	}
-/*** wait on enigma2 to be ready before rendering after play start unpause **/
-	if (!get_servicemp3_state_none() && self->paused && !self->m_paused)
-	{
-		while (!get_servicemp3_state_playing() && i < 20000)
-		{
-			i++;
-		}
-		if (self->fd >= 0) {ioctl(self->fd, VIDEO_CONTINUE);}
-		self->paused = FALSE;
-		self->playing = TRUE;
-	}
-	if (i > 0)
-	{
-		GST_INFO_OBJECT(self,"PLAY AFTER UNPAUSED ENIGMA cycles %d", i);
-		i = 0;
+			gst_sleepms(1000);
+			GST_INFO_OBJECT(self,"RESUME PLAY AFTER FLUSH + 1 SECOND");
 	}
 	GstMapInfo map, pesheadermap, codecdatamap;
 	gst_buffer_map(buffer, &map, GST_MAP_READ);
@@ -1803,7 +1787,6 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 	case GST_STATE_CHANGE_NULL_TO_READY:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_NULL_TO_READY");
 		self->ok_to_write = 1;
-		self->m_paused = FALSE;
 		break;
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_READY_TO_PAUSED");
@@ -1818,17 +1801,8 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
-		if(self->m_paused)
-		{
-			if (self->fd >= 0) ioctl(self->fd, VIDEO_CONTINUE);
-			self->paused = FALSE;
-			self->m_paused = FALSE;
-		}
-		else
-		{
-			self->paused = TRUE;
-			self->playing = FALSE;
-		}
+		if (self->fd >= 0) ioctl(self->fd, VIDEO_CONTINUE);
+		self->paused = FALSE;
 		break;
 	default:
 		break;
@@ -1841,7 +1815,6 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PLAYING_TO_PAUSED");
 		self->paused = TRUE;
-		self->m_paused = TRUE;
 		if (self->fd >= 0) ioctl(self->fd, VIDEO_FREEZE);
 		/* wakeup the poll */
 		write(self->unlockfd[1], "\x01", 1);

@@ -126,7 +126,7 @@ struct _GstDVBVideoSink
 	char saved_fallback_framerate[16];
 
 	gdouble rate;
-	gboolean playing, paused, flushing, unlocking, flushed, first_paused, m_paused;
+	gboolean playing, paused, flushing, unlocking, flushed;
 	gboolean using_dts_downmix;
 	gboolean pts_written;
 	gint64 lastpts;
