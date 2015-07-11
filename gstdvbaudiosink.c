@@ -1434,18 +1434,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		if(!self->m_paused) // first play all boxes
 		{
 			if (self->fd >= 0) ioctl(self->fd, AUDIO_CONTINUE);
-			self->playing = TRUE;
 			self->paused = FALSE;
-			/* audio start delay required by external plugins */
-			/* Enigma2 takes more time to be ready */
-			/* now I only added it for the case use off dtsdownmix */
-			/* Cd will come */
-			if(self->using_dts_downmix)
-			{
-				gint i = 0;
-				GST_INFO_OBJECT(self,"PAUSE TO PLAY AT START 3 seconds delay");
-				gst_sleepms(3000);
-			}
 		}
 		else // standard unpause all boxes
 		{
