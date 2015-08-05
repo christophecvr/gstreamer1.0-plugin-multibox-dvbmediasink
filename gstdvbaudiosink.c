@@ -73,6 +73,15 @@
 #include "gstdvbaudiosink.h"
 #include "gstdvbsink-marshal.h"
 
+#if defined(AZBOX)
+#define AUDIO_RESET_STC                	_IO('o', 30)
+#define AUDIO_STC_PLAY			_IO('o', 31)
+#define AUDIO_STC_STOP			_IO('o', 32)
+#define AUDIO_FFW			_IO('o', 33)
+#define AUDIO_FBW			_IO('o', 34)
+#define AUDIO_SET_CODEC_DATA 		_IO('o', 35)
+#endif
+
 GST_DEBUG_CATEGORY_STATIC(dvbaudiosink_debug);
 #define GST_CAT_DEFAULT dvbaudiosink_debug
 
@@ -138,7 +147,7 @@ static guint gst_dvbaudiosink_signals[LAST_SIGNAL] = { 0 };
 		"rate = (int) {8000, 16000}, channels = (int) 1; "
 
 #define XRAW "audio/x-raw"
-#if defined(DREAMBOX) || defined(MAX_PCMRATE_48K)
+#if defined(DREAMBOX) || defined(MAX_PCMRATE_48K)|| defined(AZBOX)
 #define PCMCAPS \
 		"audio/x-raw, " \
 		"format = (string) { "GST_AUDIO_NE(S32)", "GST_AUDIO_NE(S24)", "GST_AUDIO_NE(S16)", S8, "GST_AUDIO_NE(U32)", "GST_AUDIO_NE(U24)", "GST_AUDIO_NE(U16)", U8 }, " \
@@ -536,7 +545,11 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 		bypass = (wmaversion > 2) ? AUDIOTYPE_WMA_PRO : AUDIOTYPE_WMA;
 		if (codec_data)
 		{
+#if defined(AZBOX)
+			guint8 *data, *tdata;
+#else
 			guint8 *data;
+#endif
 			guint8 *codec_data_pointer;
 			gint codec_data_size;
 			gint codecid = 0x160 + wmaversion - 1;
@@ -546,7 +559,11 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 			codec_data_size = codecdatamap.size;
 			self->codec_data = gst_buffer_new_and_alloc(18 + codec_data_size);
 			gst_buffer_map(self->codec_data, &map, GST_MAP_WRITE);
+#if defined(AZBOX)			
+			tdata = data = map.data;
+#else
 			data = map.data;
+#endif
 			/* codec tag */
 			*(data++) = codecid & 0xff;
 			*(data++) = (codecid >> 8) & 0xff;
@@ -574,6 +591,10 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 			*(data++) = codec_data_size & 0xff;
 			*(data++) = (codec_data_size >> 8) & 0xff;
 			memcpy(data, codec_data_pointer, codec_data_size);
+#if defined(AZBOX)
+			 ioctl(self->fd, AUDIO_SET_CODEC_DATA, tdata);
+			//g_free(tdata);
+#endif
 			gst_buffer_unmap(self->codec_data, &map);
 			gst_buffer_unmap(gst_value_get_buffer(codec_data), &codecdatamap);
 		}
@@ -590,7 +611,11 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 	}
 	else if (!strcmp(type, XRAW))
 	{
+#if defined(AZBOX)
+		guint8 *data, *tdata;
+#else
 		guint8 *data;
+#endif
 		gint size;
 		gint format = 0x01;
 		const gchar *formatstring = NULL;
@@ -598,7 +623,11 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 		self->codec_data = gst_buffer_new_and_alloc(18);
 		GstMapInfo map;
 		gst_buffer_map(self->codec_data, &map, GST_MAP_WRITE);
+#if defined(AZBOX)
+		tdata = data = map.data;
+#else
 		data = map.data;
+#endif
 		size = map.size;
 		formatstring = gst_structure_get_string(structure, "format");
 		if (formatstring)
@@ -624,7 +653,7 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 		gst_structure_get_int(structure, "channels", &channels);
 		byterate = channels * rate * width / 8;
 		block_align = channels * width / 8;
-		memset(data, 0, size);
+		memset(data, 0, size); // check if leave or remove for Azbox
 		/* format tag */
 		*(data++) = format & 0xff;
 		*(data++) = (format >> 8) & 0xff;
@@ -651,6 +680,10 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 		self->fixed_buffersize *= channels * depth / 8;
 		self->fixed_buffertimestamp = GST_CLOCK_TIME_NONE;
 		self->fixed_bufferduration = GST_SECOND * (GstClockTime)self->fixed_buffersize / (GstClockTime)byterate;
+#if defined(AZBOX)
+		ioctl(self->fd, AUDIO_SET_CODEC_DATA, tdata);
+		//g_free(tdata);
+#endif
 		GST_INFO_OBJECT(self, "MIMETYPE %s", type);
 		bypass = AUDIOTYPE_RAW;
 		gst_buffer_unmap(self->codec_data, &map);
@@ -665,7 +698,11 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 
 	if (self->playing)
 	{
+#if defined(AZBOX)
+		if (self->fd >= 0) ioctl(self->fd, AUDIO_STC_STOP, 0); // Openazbox: AUDIO_STC_STOP
+#else
 		if (self->fd >= 0) ioctl(self->fd, AUDIO_STOP, 0);
+#endif
 		self->playing = FALSE;
 	}
 	if (self->fd < 0 || ioctl(self->fd, AUDIO_SET_BYPASS_MODE, bypass) < 0)
@@ -673,7 +710,11 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 		GST_ELEMENT_ERROR(self, STREAM, TYPE_NOT_FOUND,(NULL),("hardware decoder can't be set to bypass mode type %s", type));
 		return FALSE;
 	}
+#if defined(AZBOX)
+	if (self->fd >= 0) ioctl(self->fd, AUDIO_STC_PLAY);  // Openazbox: AUDIO_STC_PLAY
+#else
 	if (self->fd >= 0) ioctl(self->fd, AUDIO_PLAY);
+#endif
 	self->playing = TRUE;
 
 	self->bypass = bypass;
@@ -790,6 +831,17 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 
 			if (rate != self->rate)
 			{
+#if defined(AZBOX)
+				int skip = 0;
+				skip = (int)rate;
+				if (rate > 1.0)
+					ioctl(self->fd, AUDIO_FFW, skip);
+				else if (rate < 1.0)					
+					ioctl(self->fd, AUDIO_FBW, skip);
+				else										
+					ioctl(self->fd, AUDIO_FFW, skip);
+				self->rate = rate;
+#else
 				int video_fd = open("/dev/dvb/adapter0/video0", O_RDWR);
 				if (video_fd >= 0)
 				{
@@ -810,6 +862,7 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 					video_fd = -1;
 				}
 				self->rate = rate;
+#endif
 				ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 			}
 			else
@@ -1348,11 +1401,17 @@ static gboolean gst_dvbaudiosink_stop(GstBaseSink * basesink)
 	{
 		if (self->playing)
 		{
+#if defined(AZBOX)
+			ioctl(self->fd, AUDIO_STC_STOP); // Openazbox: AUDIO_STC_STOP)
+#else
 			ioctl(self->fd, AUDIO_STOP);
+#endif
 			self->playing = FALSE;
 		}
 		ioctl(self->fd, AUDIO_SELECT_SOURCE, AUDIO_SOURCE_DEMUX);
-
+#if defined(AZBOX)
+		self->rate = 1.0;
+#else
 		if (self->rate != 1.0)
 		{
 			int video_fd = open("/dev/dvb/adapter0/video0", O_RDWR);
@@ -1364,6 +1423,7 @@ static gboolean gst_dvbaudiosink_stop(GstBaseSink * basesink)
 			}
 			self->rate = 1.0;
 		}
+#endif	
 		close(self->fd);
 		self->fd = -1;
 	}
@@ -1424,7 +1484,11 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		if (self->fd >= 0)
 		{
 			ioctl(self->fd, AUDIO_SELECT_SOURCE, AUDIO_SOURCE_MEMORY);
+#if defined(AZBOX)
+			ioctl(self->fd, AUDIO_RESET_STC); //Openazbox: AUDIO_RESET_STC
+#else
 			ioctl(self->fd, AUDIO_PAUSE);
+#endif
 		}
 		if(get_downmix_ready())
 			self->using_dts_downmix = TRUE;
@@ -1433,12 +1497,20 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 		if(!self->m_paused) // first play all boxes
 		{
+#if defined(AZBOX)
+			if (self->fd >= 0) ioctl(self->fd, AUDIO_STC_PLAY); //openazbox
+#else
 			if (self->fd >= 0) ioctl(self->fd, AUDIO_CONTINUE);
+#endif
 			self->paused = FALSE;
 		}
 		else // standard unpause all boxes
 		{
+#if defined(AZBOX)
+			if (self->fd >= 0) ioctl(self->fd, AUDIO_STC_PLAY); //openazbox
+#else
 			if (self->fd >= 0) ioctl(self->fd, AUDIO_CONTINUE);
+#endif
 			self->playing = TRUE;
 			self->paused = FALSE;
 		}
@@ -1458,7 +1530,11 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 
 		if (self->fd >= 0)
 		{
+#if defined(AZBOX)
+			ioctl(self->fd, AUDIO_STC_STOP); //Openazbox: AUDIO_STC_STOP
+#else
 			ioctl(self->fd, AUDIO_PAUSE);
+#endif
 		}
 		/* wakeup the poll */
 		write(self->unlockfd[1], "\x01", 1);
