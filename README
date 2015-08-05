@@ -18,6 +18,8 @@ For dags machines add --with-dags.
 Some xtrend boxes need a max pcm rate off 48000.
 For those boxes add --with-max-pcmrate-48K
 
+For azbox machines add --with-azbox.
+
 Examples configs :
 
 dreambox dm800se : DVBMEDIASINK_CONFIG = "--with-dreambox --with-pcm --with-wma --with-wmv --with-dtsdownmix --with-eac3"
