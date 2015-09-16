@@ -267,7 +267,6 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 	self->rate = 1.0;
 	self->timestamp = GST_CLOCK_TIME_NONE;
 
-	gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
 	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), TRUE);
 }
 
@@ -1428,6 +1427,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		}
 		if(get_downmix_ready())
 			self->using_dts_downmix = TRUE;
+		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
