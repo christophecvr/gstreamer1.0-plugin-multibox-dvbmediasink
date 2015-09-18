@@ -1458,7 +1458,6 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 {
 	GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
 	GstDVBAudioSink *self = GST_DVBAUDIOSINK(element);
-	FILE *f;
 
 	switch(transition)
 	{
