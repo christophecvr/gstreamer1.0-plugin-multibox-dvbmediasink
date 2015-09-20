@@ -87,6 +87,14 @@ GST_DEBUG_CATEGORY_STATIC(dvbaudiosink_debug);
 
 enum
 {
+	PROP_0,
+	PROP_SYNC,
+	PROP_LAST,
+};
+
+
+enum
+{
 	SIGNAL_GET_DECODER_TIME,
 	LAST_SIGNAL
 };
@@ -193,6 +201,8 @@ GST_STATIC_PAD_TEMPLATE(
 static void gst_dvbaudiosink_init(GstDVBAudioSink *self);
 static void gst_dvbaudiosink_dispose(GObject *obj);
 static void gst_dvbaudiosink_reset(GObject *obj);
+static void gst_dvbaudiosink_set_property (GObject * object, guint prop_id, const GValue * value, GParamSpec * pspec);
+static void gst_dvbaudiosink_get_property (GObject * object, guint prop_id, GValue * value, GParamSpec * pspec);
 
 #define DEBUG_INIT \
 	GST_DEBUG_CATEGORY_INIT(dvbaudiosink_debug, "dvbaudiosink", 0, "dvbaudiosink element");
@@ -229,6 +239,13 @@ static void gst_dvbaudiosink_class_init(GstDVBAudioSinkClass *self)
 		"Generic/DVBAudioSink",
 		"Outputs PES into a linuxtv dvb audio device",
 		"PLi team");
+
+	gobject_class->set_property = gst_dvbaudiosink_set_property;
+	gobject_class->get_property = gst_dvbaudiosink_get_property;
+
+	g_object_class_install_property (gobject_class, PROP_SYNC,
+			g_param_spec_boolean ("sync", "Sync", "Sync on the clock", FALSE,
+					G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
 	gstbasesink_class->start = GST_DEBUG_FUNCPTR(gst_dvbaudiosink_start);
 	gstbasesink_class->stop = GST_DEBUG_FUNCPTR(gst_dvbaudiosink_stop);
@@ -283,13 +300,45 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 static void gst_dvbaudiosink_dispose(GObject *obj)
 {
 	G_OBJECT_CLASS(parent_class)->dispose(obj);
-	GST_INFO("GstDVBAudioSink DISPOSED");
+	GST_DEBUG("GstDVBAudioSink DISPOSED");
 }
 
 static void gst_dvbaudiosink_reset(GObject *obj)
 {
 	G_OBJECT_CLASS(parent_class)->finalize(obj);
-	GST_INFO("GstDVBAudioSink RESET");
+	GST_DEBUG("GstDVBAudioSink RESET");
+}
+
+static void gst_dvbaudiosink_set_property (GObject * object, guint prop_id, const GValue * value, GParamSpec * pspec)
+{
+	GstDVBAudioSink *self = GST_DVBAUDIOSINK (object);
+
+	switch (prop_id)
+	{
+	/* sink should only work with sync turned off, ignore all attempts to change it */
+	case PROP_SYNC:
+		GST_INFO_OBJECT(self, "ignoring attempt to change 'sync' to '%d'", g_value_get_boolean(value));
+		break;
+	default:
+		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+		break;
+	}
+}
+
+static void gst_dvbaudiosink_get_property (GObject * object, guint prop_id, GValue * value, GParamSpec * pspec)
+{
+	GstDVBAudioSink *self = GST_DVBAUDIOSINK (object);
+	GST_INFO_OBJECT(self, "Get sync property %u", prop_id);
+
+	switch (prop_id)
+	{
+	case PROP_SYNC:
+		g_value_set_boolean(value, gst_base_sink_get_sync(GST_BASE_SINK(object)));
+		break;
+	default:
+		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+		break;
+	}
 }
 
 static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
@@ -429,8 +478,8 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 					{
 						guint8 h[2];
 						gst_buffer_extract(gst_value_get_buffer(codec_data), 0, h, sizeof(h));
-						guint8 obj_type =((h[0] & 0xC) >> 2) + 1;
-						guint8 rate_idx =((h[0] & 0x3) << 1) |((h[1] & 0x80) >> 7);
+						guint8 obj_type =h[0] >> 3;
+						guint8 rate_idx =((h[0] & 0x7) << 1) |((h[1] & 0x80) >> 7);
 						guint8 channels =(h[1] & 0x78) >> 3;
 						GST_INFO_OBJECT(self, "have codec data -> obj_type = %d, rate_idx = %d, channels = %d\n",
 							obj_type, rate_idx, channels);
@@ -442,7 +491,7 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 						if (mpegversion == 2)
 							self->aac_adts_header[1] |= 8;
 						/* Object type over first 2 bits */
-						self->aac_adts_header[2] = obj_type << 6;
+						self->aac_adts_header[2] = (obj_type - 1) << 6;
 						/* rate index over next 4 bits */
 						self->aac_adts_header[2] |= rate_idx << 2;
 						/* channels over last 2 bits */
@@ -1469,7 +1518,6 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 {
 	GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
 	GstDVBAudioSink *self = GST_DVBAUDIOSINK(element);
-	FILE *f;
 
 	switch(transition)
 	{

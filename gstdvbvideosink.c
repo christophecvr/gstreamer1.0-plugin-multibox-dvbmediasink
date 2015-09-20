@@ -165,6 +165,13 @@ GST_DEBUG_CATEGORY_STATIC (dvbvideosink_debug);
 
 enum
 {
+	PROP_0,
+	PROP_SYNC,
+	PROP_LAST,
+};
+
+enum
+{
 	SIGNAL_GET_DECODER_TIME,
 	LAST_SIGNAL
 };
@@ -242,6 +249,8 @@ GST_STATIC_PAD_TEMPLATE (
 static void gst_dvbvideosink_init(GstDVBVideoSink *self);
 static void gst_dvbvideosink_dispose(GObject *obj);
 static void gst_dvbvideosink_reset(GObject *obj);
+static void gst_dvbvideosink_set_property (GObject * object, guint prop_id, const GValue * value, GParamSpec * pspec);
+static void gst_dvbvideosink_get_property (GObject * object, guint prop_id, GValue * value, GParamSpec * pspec);
 
 #define DEBUG_INIT \
 	GST_DEBUG_CATEGORY_INIT(dvbvideosink_debug, "dvbvideosink", 0, "dvbvideosink element");
@@ -276,6 +285,13 @@ static void gst_dvbvideosink_class_init(GstDVBVideoSinkClass *self)
 		"Generic/DVBVideoSink",
 		"Outputs PES into a linuxtv dvb video device",
 		"PLi team");
+
+	gobject_class->set_property = gst_dvbvideosink_set_property;
+	gobject_class->get_property = gst_dvbvideosink_get_property;
+
+	g_object_class_install_property (gobject_class, PROP_SYNC,
+			g_param_spec_boolean ("sync", "Sync", "Sync on the clock", FALSE,
+					G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
 	gstbasesink_class->start = GST_DEBUG_FUNCPTR (gst_dvbvideosink_start);
 	gstbasesink_class->stop = GST_DEBUG_FUNCPTR (gst_dvbvideosink_stop);
@@ -335,18 +351,45 @@ static void gst_dvbvideosink_init(GstDVBVideoSink *self)
 static void gst_dvbvideosink_dispose(GObject *obj)
 {
 	G_OBJECT_CLASS(parent_class)->dispose(obj);
-	GST_INFO("GstDVBVideoSink DISPOSED");
+	GST_DEBUG("GstDVBVideoSink DISPOSED");
 }
 
 static void gst_dvbvideosink_reset(GObject *obj)
 {
 	G_OBJECT_CLASS(parent_class)->finalize(obj);
-	GST_INFO("GstDVBVideoSink RESET");
+	GST_DEBUG("GstDVBVideoSink RESET");
 }
 
-#ifdef HAVE_DTSDOWNMIX
+static void gst_dvbvideosink_set_property (GObject * object, guint prop_id, const GValue * value, GParamSpec * pspec)
+{
+	GstDVBVideoSink *self = GST_DVBVIDEOSINK(object);
 
-#endif
+	switch (prop_id)
+	{
+	/* sink should only work with sync turned off, ignore all attempts to change it */
+	case PROP_SYNC:
+		GST_INFO_OBJECT(self, "ignoring attempt to change 'sync' to '%d'", g_value_get_boolean(value));
+		break;
+	default:
+		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+		break;
+	}
+}
+
+static void gst_dvbvideosink_get_property (GObject * object, guint prop_id, GValue * value, GParamSpec * pspec)
+{
+	GstDVBVideoSink *self = GST_DVBVIDEOSINK(object);
+
+	switch (prop_id)
+	{
+	case PROP_SYNC:
+		g_value_set_boolean(value, gst_base_sink_get_sync(GST_BASE_SINK(object)));
+		break;
+	default:
+		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+		break;
+	}
+}
 
 static gint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
 {
