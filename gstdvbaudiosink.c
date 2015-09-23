@@ -283,9 +283,13 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 	self->unlockfd[0] = self->unlockfd[1] = -1;
 	self->rate = 1.0;
 	self->timestamp = GST_CLOCK_TIME_NONE;
-
+#ifdef VUPLUS
+	gst_base_sink_set_sync(GST_BASE_SINK(self), TRUE);
+	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
+#else
 	gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
 	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), TRUE);
+#endif
 }
 
 static void gst_dvbaudiosink_dispose(GObject *obj)
