@@ -27,7 +27,8 @@ vuplus           : DVBMEDIASINK_CONFIG = "--with-vuplus --with-pcm --with-eac3 -
 Note since 17032015 vuplus added new drivers.
 SRCDATE = "20150317"
 
-For all boxes with drivers from that date or above the --with-vuplus option is not required anymore.
-Then the dvbmediasink config for vuplus must be.
-vuplus           : DVBMEDIASINK_CONFIG = "--with-pcm --with-eac3 --with-amr --with-wmv"
+All old driver vuplus support removed.
+VUPLUS audio must run in sync for vuplus add always option --with-vuplus .
+vuplus           : DVBMEDIASINK_CONFIG = "--with-vuplus --with-pcm --with-eac3 --with-wmv"
+
 
