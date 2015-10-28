@@ -545,7 +545,18 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 	{
 		GstTagList *taglist;
 		gst_event_parse_tag(event, &taglist);
+		gchar *vcodec_value;
 		GST_INFO_OBJECT(self,"TAG %"GST_PTR_FORMAT, taglist);
+		gst_tag_list_get_string (taglist, "video-codec", &vcodec_value);
+		if (vcodec_value)
+		{
+			if(!strncmp(vcodec_value,"FFmpeg MPEG-4", 13) && self->mpeg4_no_fourcc);
+			{
+				self->stream_type = STREAMTYPE_XVID;
+				self->use_dts = TRUE;
+				GST_INFO_OBJECT (self, "VIDEO_CODEC = %s set STREAMTYPE_XVID", vcodec_value);
+			}
+		}
 		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		break;
 	}
@@ -1286,6 +1297,7 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 	const char *mimetype = gst_structure_get_name (structure);
 	self->stream_type = STREAMTYPE_UNKNOWN;
 	self->must_send_header = TRUE;
+	self->mpeg4_no_fourcc = FALSE;
 
 	GST_INFO_OBJECT (self, "caps = %" GST_PTR_FORMAT, caps);
 
@@ -1322,6 +1334,8 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 					fourcc = GST_STR_FOURCC(value);
 				switch (fourcc)
 				{
+					case 0:
+						self->mpeg4_no_fourcc = TRUE;
 					case GST_MAKE_FOURCC('R', 'M', 'P', '4'):
 					case GST_MAKE_FOURCC('x', 'v', 'i', 'd'):
 					case GST_MAKE_FOURCC('X', 'V', 'I', 'D'):
