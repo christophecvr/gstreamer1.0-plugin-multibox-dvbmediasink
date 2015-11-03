@@ -555,9 +555,6 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 			{
 				self->stream_type = STREAMTYPE_XVID;
 				self->use_dts = TRUE;
-#ifdef PACK_UNPACKED_XVID_DIVX5_BITSTREAM
-				self->must_pack_bitstream = TRUE;
-#endif
 				GST_INFO_OBJECT (self, "VIDEO_CODEC = %s set STREAMTYPE_XVID", vcodec_value);
 			}
 			g_free(vcodec_value);
