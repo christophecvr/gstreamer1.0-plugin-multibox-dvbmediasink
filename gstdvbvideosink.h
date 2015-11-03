@@ -133,7 +133,6 @@ struct _GstDVBVideoSink
 	gint64 timestamp_offset;
 	gboolean must_send_header;
 	gint8 ok_to_write;
-	gboolean mpeg4_no_fourcc;
 
 	queue_entry_t *queue;
 };
