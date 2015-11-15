@@ -128,7 +128,7 @@ struct _GstDVBAudioSink
 	GstClockTime timestamp;
 	gdouble rate;
 	gboolean playing, paused, flushing, unlocking;
-	gboolean pts_written, m_paused;
+	gboolean pts_written;
 	gboolean flushed, using_dts_downmix;
 	gint64 lastpts;
 	gint64 timestamp_offset;

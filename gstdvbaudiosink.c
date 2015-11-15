@@ -1466,7 +1466,6 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 	{
 	case GST_STATE_CHANGE_NULL_TO_READY:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_NULL_TO_READY");
-		self->m_paused = FALSE;
 		self->ok_to_write = 1;
 		break;
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
@@ -1482,17 +1481,8 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
-		if(!self->m_paused) // first play all boxes
-		{
-			if (self->fd >= 0) ioctl(self->fd, AUDIO_CONTINUE);
-			self->paused = FALSE;
-		}
-		else // standard unpause all boxes
-		{
-			if (self->fd >= 0) ioctl(self->fd, AUDIO_CONTINUE);
-			self->playing = TRUE;
-			self->paused = FALSE;
-		}
+		if (self->fd >= 0) ioctl(self->fd, AUDIO_CONTINUE);
+		self->paused = FALSE;
 		break;
 	default:
 		break;
@@ -1505,15 +1495,12 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PLAYING_TO_PAUSED");
 		self->paused = TRUE;
-		self->m_paused = TRUE;
-
 		if (self->fd >= 0)
 		{
 			ioctl(self->fd, AUDIO_PAUSE);
 		}
 		/* wakeup the poll */
 		write(self->unlockfd[1], "\x01", 1);
-		self->playing = FALSE;
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_READY:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_READY");
