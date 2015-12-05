@@ -133,7 +133,7 @@ struct _GstDVBVideoSink
 	gboolean pts_written;
 	gint64 lastpts;
 	gint64 timestamp_offset;
-	gboolean must_send_header;
+	gboolean must_send_header, wmv_asf;
 	gint8 ok_to_write;
 
 	queue_entry_t *queue;

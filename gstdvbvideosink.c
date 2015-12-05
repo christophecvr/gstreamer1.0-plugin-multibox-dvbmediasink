@@ -339,6 +339,7 @@ static void gst_dvbvideosink_init(GstDVBVideoSink *self)
 	self->unlockfd[0] = self->unlockfd[1] = -1;
 	self->saved_fallback_framerate[0] = 0;
 	self->rate = 1.0;
+	self->wmv_asf = FALSE;
 
 	gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
 	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), TRUE);
@@ -552,6 +553,21 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		GstTagList *taglist;
 		gst_event_parse_tag(event, &taglist);
 		GST_INFO_OBJECT(self,"TAG %"GST_PTR_FORMAT, taglist);
+		if(self->codec_type == CT_VC1)
+		{
+			gchar *cont_val = NULL;
+			gboolean have_cont_tag = gst_tag_list_get_string (taglist, GST_TAG_CONTAINER_FORMAT, &cont_val);
+			if(have_cont_tag && cont_val)
+			{
+				if(!strncmp(cont_val, "ASF", 3))
+				{
+					GST_INFO_OBJECT(self,"SET wmv_asf to TRUE");
+					self->wmv_asf = TRUE;
+				}
+			}
+			if(have_cont_tag)
+				g_free(cont_val);
+		}
 		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		break;
 	}
@@ -1206,7 +1222,11 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 			}
 		}
 	}
-	else if (self->codec_type == CT_VC1 || self->codec_type == CT_VC1_SM)
+#ifdef VUPLUS
+ 	else if (self->codec_type == CT_VC1 || self->codec_type == CT_VC1_SM)
+#else
+	else if (self->wmv_asf && (self->codec_type == CT_VC1 || self->codec_type == CT_VC1_SM))
+#endif
 	{
 		memcpy(pes_header + pes_header_len, "\x00\x00\x01\x0d", 4);
 		pes_header_len += 4;
