@@ -277,8 +277,6 @@ GST_STATIC_PAD_TEMPLATE (
 	"video/x-wmv, "
 		VIDEO_CAPS ", wmvversion = (int) 3; "
 #endif
-	"video/mpegts, systemstream=(boolean)true, "
-		VIDEO_CAPS "; "
 	)
 );
 
