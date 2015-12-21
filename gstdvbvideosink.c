@@ -1258,7 +1258,7 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 #ifdef VUPLUS
  	else if (self->codec_type == CT_VC1 || self->codec_type == CT_VC1_SM)
 #else
-	else if (self->wmv_asf && (self->codec_type == CT_VC1 || self->codec_type == CT_VC1_SM))
+	else if ((self->wmv_asf && self->codec_type == CT_VC1) || self->codec_type == CT_VC1_SM))
 #endif
 	{
 		memcpy(pes_header + pes_header_len, "\x00\x00\x01\x0d", 4);
