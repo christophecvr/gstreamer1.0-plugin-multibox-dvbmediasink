@@ -217,6 +217,7 @@ GST_STATIC_PAD_TEMPLATE (
 #ifdef HAVE_MPEG4
 	"video/mpeg, "
 		"mpegversion = (int) 4, "
+		"unpacked = (boolean) true, "
 		VIDEO_CAPS "; "
 #endif
 	"video/mpeg, "
@@ -230,7 +231,8 @@ GST_STATIC_PAD_TEMPLATE (
 	"video/x-h264, "
 		VIDEO_CAPS "; "
 	"video/x-h264, "
-		"parsed = (boolean)true; "
+		"parsed = (boolean) true, "
+		"alignment = (string) nal; "
 #endif
 #ifdef HAVE_H263
 	"video/x-h263, "
@@ -251,13 +253,6 @@ GST_STATIC_PAD_TEMPLATE (
 		VIDEO_CAPS 
 #endif
 		", divxversion = (int) 3;"
-	"video/x-divx, "
-#ifdef HAVE_LIMITED_MPEG4V2
-		MPEG4V2_LIMITED_CAPS
-#else
-		VIDEO_CAPS
-#endif
-		", divxversion = (int) [4, 6];"
 	"video/x-xvid, "
 #ifdef HAVE_LIMITED_MPEG4V2
 		MPEG4V2_LIMITED_CAPS
@@ -277,8 +272,6 @@ GST_STATIC_PAD_TEMPLATE (
 	"video/x-wmv, "
 		VIDEO_CAPS ", wmvversion = (int) 3; "
 #endif
-	"video/mpegts, systemstream=(boolean)true, "
-		VIDEO_CAPS "; "
 	)
 );
 
@@ -1383,23 +1376,6 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 			case 4:
 			{
 				self->stream_type = STREAMTYPE_MPEG4_Part2;
-				guint32 fourcc = 0;
-				const gchar *value = gst_structure_get_string(structure, "fourcc");
-				if (value)
-					fourcc = GST_STR_FOURCC(value);
-				switch (fourcc)
-				{
-					case GST_MAKE_FOURCC('F', 'M', 'P', '4'):
-					case GST_MAKE_FOURCC('R', 'M', 'P', '4'):
-					case GST_MAKE_FOURCC('x', 'v', 'i', 'd'):
-					case GST_MAKE_FOURCC('X', 'V', 'I', 'D'):
-						self->stream_type = STREAMTYPE_XVID;
-						self->use_dts = TRUE;
-#ifdef PACK_UNPACKED_XVID_DIVX5_BITSTREAM
-						self->must_pack_bitstream = TRUE;
-#endif
-					break;
-				}
 				const GValue *codec_data = gst_structure_get_value(structure, "codec_data");
 				if (codec_data)
 				{
@@ -1408,10 +1384,7 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 					gst_buffer_ref (self->codec_data);
 				}
 				self->codec_type = CT_MPEG4_PART2;
-				if (self->stream_type == STREAMTYPE_MPEG4_Part2)
-					GST_INFO_OBJECT (self, "MIMETYPE video/mpeg4 -> STREAMTYPE_MPEG4_Part2");
-				else
-					GST_INFO_OBJECT (self, "MIMETYPE video/xvid -> STREAMTYPE_XVID");
+				GST_INFO_OBJECT (self, "MIMETYPE video/mpeg4 -> STREAMTYPE_MPEG4_Part2");
 			}
 			break;
 			default:
