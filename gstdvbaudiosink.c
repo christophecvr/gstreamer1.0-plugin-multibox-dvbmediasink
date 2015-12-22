@@ -274,7 +274,7 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 	self->pesheader_buffer = NULL;
 	self->cache = NULL;
 	self->playing = self->flushing = self->unlocking = self->paused = FALSE;
-	self->pts_written = self->using_dts_downmix = FALSE;
+	self->pts_written = self->using_dts_downmix = self->first_paused = FALSE;
 	self->lastpts = 0;
 	self->timestamp_offset = 0;
 	self->queue = NULL;
@@ -1471,6 +1471,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_READY_TO_PAUSED");
 		self->paused = TRUE;
+		self->first_paused = TRUE;
 		if (self->fd >= 0)
 		{
 			ioctl(self->fd, AUDIO_SELECT_SOURCE, AUDIO_SOURCE_MEMORY);
@@ -1481,6 +1482,12 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
+		if(self->using_dts_downmix && self->first_paused)
+		{
+			gst_sleepms(1800);
+			self->first_paused = FALSE;
+			GST_INFO_OBJECT(self, "USING DTSDOWMIX DELAY START 1800 ms");
+		}
 		if (self->fd >= 0) ioctl(self->fd, AUDIO_CONTINUE);
 		self->paused = FALSE;
 		break;
