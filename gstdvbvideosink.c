@@ -477,7 +477,6 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		self->flushing = TRUE;
 		/* wakeup the poll */
 		write(self->unlockfd[1], "\x01", 1);
-		if(self->paused) ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		break;
 	case GST_EVENT_FLUSH_STOP:
 		if (self->fd >= 0) ioctl(self->fd, VIDEO_CLEAR_BUFFER);
@@ -489,7 +488,6 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		}
 		self->flushing = FALSE;
 		GST_OBJECT_UNLOCK(self);
-		if(self->paused) ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		/* flush while media is playing requires a delay before rendering */
 		if (self->using_dts_downmix)
 		{
@@ -539,7 +537,6 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 			}
 		}
 		GST_BASE_SINK_PREROLL_LOCK(sink);
-		if (ret) ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		break;
 	}
 	case GST_EVENT_SEGMENT:
@@ -578,14 +575,13 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 				self->rate = rate;
 			}
 		}
-		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		break;
 	}
 	case GST_EVENT_TAG:
 	{
 		GstTagList *taglist;
 		gst_event_parse_tag(event, &taglist);
-		GST_INFO_OBJECT(self,"TAG %"GST_PTR_FORMAT, taglist);
+		GST_DEBUG_OBJECT(self,"TAG %"GST_PTR_FORMAT, taglist);
 		if(self->codec_type == CT_VC1)
 		{
 			gchar *cont_val = NULL;
@@ -601,45 +597,15 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 			if(have_cont_tag)
 				g_free(cont_val);
 		}
-		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
-		break;
-	}
-	case GST_EVENT_TOC:
-	{
-		GstToc *toc;
-		gboolean updated;
-		gst_event_parse_toc (event, &toc, &updated);
-		/* get toc entries info if updated */
-		GList *i = NULL;
-		for (i = gst_toc_get_entries(toc); i; i = i->next)
-		{
-			GstTocEntry *entry = (GstTocEntry*)(i->data);
-			GST_INFO_OBJECT(self,"Toc entry_type %s", gst_toc_entry_type_get_nick(gst_toc_entry_get_entry_type (entry)));
-			GList *x = NULL;
-			for (x = gst_toc_entry_get_sub_entries (entry); x; x = x->next)
-			{
-				GstTocEntry *sub_entry = (GstTocEntry*)(x->data);
-				GstTagList *tags = gst_toc_entry_get_tags(sub_entry);
-				gint64 start = 0;
-				gint64 stop = 0;
-				gst_toc_entry_get_start_stop_times(sub_entry, &start, &stop);
-				gchar *title;
-				gst_tag_list_get_string (tags, "title", &title);
-				GST_INFO_OBJECT(self,"%s start=%"G_GINT64_FORMAT " stop=%"G_GINT64_FORMAT,
-								 title, start, stop);
-				g_free(title);
-			}
-		}
-		GstTocScope scope = gst_toc_get_scope(toc);
-		GST_INFO_OBJECT(self,"TOC  scope=%d", scope);
-		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		break;
 	}
 	default:
-		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
 		break;
 	}
-
+	if (ret)
+		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+	else
+		gst_event_unref;
 	return ret;
 }
 
@@ -1993,7 +1959,7 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
-		if (self->fd >= 0) ioctl(self->fd, VIDEO_CONTINUE);
+		if (self->fd >= 0 && self->paused) ioctl(self->fd, VIDEO_CONTINUE);
 		self->paused = FALSE;
 		break;
 	default:
