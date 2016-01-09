@@ -374,8 +374,13 @@ static void gst_dvbvideosink_init(GstDVBVideoSink *self)
 	self->rate = 1.0;
 	self->wmv_asf = FALSE;
 
+#ifdef VUPLUS
 	gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
-	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), TRUE);
+	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
+#else
+	gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
+	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
+#endif
 }
 
 static void gst_dvbvideosink_dispose(GObject *obj)
