@@ -136,6 +136,8 @@ struct _GstDVBVideoSink
 	gboolean must_send_header, wmv_asf;
 	gint8 ok_to_write;
 
+	gboolean use_set_encoding;
+
 	queue_entry_t *queue;
 };
 
