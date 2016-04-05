@@ -108,6 +108,7 @@ struct _GstDVBVideoSink
 	int unlockfd[2];
 
 	gint h264_nal_len_size;
+	gboolean h264_initial_audelim_written;
 
 	GstBuffer *pesheader_buffer;
 

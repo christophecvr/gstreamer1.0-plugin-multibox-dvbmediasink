@@ -393,6 +393,7 @@ static void gst_dvbvideosink_init(GstDVBVideoSink *self)
 {
 	self->must_send_header = TRUE;
 	self->h264_nal_len_size = 0;
+	self->h264_initial_audelim_written = FALSE;
 	self->pesheader_buffer = NULL;
 	self->codec_data = NULL;
 	self->codec_type = CT_H264;
@@ -859,6 +860,45 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 		gst_buffer_map(self->codec_data, &codecdatamap, GST_MAP_READ);
 		codec_data = codecdatamap.data;
 		codec_data_size = codecdatamap.size;
+	}
+
+	if (self->codec_type == CT_H264 && !self->h264_initial_audelim_written)
+	{
+		int i = 0;
+		while( data[i] == 0 && i != data_len)
+		{
+			//GST_DEBUG_OBJECT(self, "data[%d] = %d", i , data[i]); 
+			i++;
+		}
+		if (i > 1 && data[i] == 1)
+		{
+			int au_type = data[i+1] & 0x1f;
+			char au_str[64];
+			switch(au_type)
+			{
+				case 1: strcpy(au_str, "SLICE"); break;
+				case 5: strcpy(au_str, "IDR"); break;
+				case 6: strcpy(au_str, "SEI"); break;
+				case 7: strcpy(au_str, "SPS"); break;
+				case 8: strcpy(au_str, "PPS"); break;
+				case 9: strcpy(au_str, "AU_DELIM"); break;
+				default:
+					strcpy(au_str, "UNK");
+					break;
+			}
+			GST_DEBUG_OBJECT(self, "AU_TYPE = %s [%d]", au_str, au_type);
+			if (au_type == 9)
+			{
+				if (!GST_BUFFER_PTS_IS_VALID(buffer))
+				{
+					GST_DEBUG_OBJECT(self, "writing missing pts to AU_DELIM");
+					GST_BUFFER_PTS(buffer) = 0;
+				}
+				self->h264_initial_audelim_written = TRUE;
+			}
+		}
+		else
+			GST_INFO_OBJECT(self, "data[%d] = %d :(", i, data[i]);
 	}
 
 #ifdef PACK_UNPACKED_XVID_DIVX5_BITSTREAM
