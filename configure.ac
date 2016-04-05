@@ -236,6 +236,13 @@ if test "$vuplus" = "yes"; then
 	AC_DEFINE([VUPLUS],[1],[Define to 1 for vuplus ])
 fi
 
+AC_ARG_WITH(spark,
+	AS_HELP_STRING([--with-spark],[build for spark, yes or no]),
+	[spark=$withval],[spark=no])
+if test "$spark" = "yes"; then
+	AC_DEFINE([SPARK],[1],[Define to 1 for spark ])
+fi
+
 AC_ARG_WITH(dreambox,
 	AS_HELP_STRING([--with-dreambox],[build for dreambox, yes or no]),
 	[dreambox=$withval],[dreambox=no])

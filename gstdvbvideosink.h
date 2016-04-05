@@ -108,6 +108,7 @@ struct _GstDVBVideoSink
 	int unlockfd[2];
 
 	gint h264_nal_len_size;
+	gboolean h264_initial_audelim_written;
 
 	GstBuffer *pesheader_buffer;
 
@@ -135,6 +136,8 @@ struct _GstDVBVideoSink
 	gint64 timestamp_offset;
 	gboolean must_send_header, wmv_asf;
 	gint8 ok_to_write;
+
+	gboolean use_set_encoding;
 
 	queue_entry_t *queue;
 };
