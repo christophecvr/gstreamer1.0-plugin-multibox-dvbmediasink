@@ -403,7 +403,6 @@ static void gst_dvbvideosink_init(GstDVBVideoSink *self)
 	self->num_non_keyframes = 0;
 	self->prev_frame = NULL;
 #endif
-	self->use_dts = FALSE;
 	self->paused = self->playing = self->unlocking = self->flushing = FALSE;
 	self->pts_written = self->using_dts_downmix = FALSE;
 	self->lastpts = 0;
@@ -1351,7 +1350,7 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 #endif
 	if (video_write(sink, self, buffer, data - original_data, (data - original_data) + data_len) < 0) goto error;
 
-	if (GST_BUFFER_PTS_IS_VALID(buffer) || (self->use_dts && GST_BUFFER_DTS_IS_VALID(buffer)))
+	if (GST_BUFFER_PTS_IS_VALID(buffer) || (GST_BUFFER_DTS_IS_VALID(buffer))
 	{
 		self->pts_written = TRUE;
 	}
@@ -1688,7 +1687,6 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 					B_SET_BITS("'100000'", 0x20, 5, 0);
 				self->stream_type = STREAMTYPE_DIVX311;
 				self->codec_type = CT_DIVX311;
-				self->use_dts = TRUE;
 				GST_INFO_OBJECT (self, "MIMETYPE video/x-divx vers. 3 -> STREAMTYPE_DIVX311");
 				gst_buffer_unmap(self->codec_data, &map);
 			}
@@ -1698,12 +1696,10 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 				self->codec_type = CT_DIVX4;
 				self->codec_data = gst_buffer_new_and_alloc(12);
 				gst_buffer_fill(self->codec_data, 0, "\x00\x00\x01\xb2\x44\x69\x76\x58\x34\x41\x4e\x44", 12);
-				self->use_dts = TRUE;
 				GST_INFO_OBJECT (self, "MIMETYPE video/x-divx vers. 4 -> STREAMTYPE_DIVX4");
 			break;
 			case 6:
 			case 5:
-				self->use_dts = TRUE;
 				self->stream_type = STREAMTYPE_DIVX5;
 				GST_INFO_OBJECT (self, "MIMETYPE video/x-divx vers. %d -> STREAMTYPE_DIVX5", divxversion);
 #ifdef PACK_UNPACKED_XVID_DIVX5_BITSTREAM
