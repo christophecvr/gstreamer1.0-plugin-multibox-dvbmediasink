@@ -1350,7 +1350,7 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 #endif
 	if (video_write(sink, self, buffer, data - original_data, (data - original_data) + data_len) < 0) goto error;
 
-	if (GST_BUFFER_PTS_IS_VALID(buffer) || (GST_BUFFER_DTS_IS_VALID(buffer))
+	if (GST_BUFFER_PTS_IS_VALID(buffer) || GST_BUFFER_DTS_IS_VALID(buffer))
 	{
 		self->pts_written = TRUE;
 	}
