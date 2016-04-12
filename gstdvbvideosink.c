@@ -630,6 +630,18 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		}
 		break;
 	}
+	case GST_EVENT_CAPS:
+	{
+		GstCaps *caps;
+		gst_event_parse_caps(event, &caps);
+		if (caps)
+		{
+			GST_DEBUG_OBJECT(self,"CAP %"GST_PTR_FORMAT, caps);
+		}
+		else
+			ret = FALSE;
+		break;
+	}
 	case GST_EVENT_TAG:
 	{
 		GstTagList *taglist;
@@ -690,12 +702,12 @@ static int video_write(GstBaseSink *sink, GstDVBVideoSink *self, GstBuffer *buff
 			GST_OBJECT_LOCK(self);
 			queue_push(&self->queue, buffer, written, end);
 			GST_OBJECT_UNLOCK(self);
-			GST_DEBUG_OBJECT(self, "pushed %d bytes to queue", len - written);
+			GST_TRACE_OBJECT(self, "pushed %d bytes to queue", len - written);
 			break;
 		}
 		else
 		{
-			GST_DEBUG_OBJECT (self, "going into poll, have %d bytes to write", len - written);
+			GST_TRACE_OBJECT (self, "going into poll, have %d bytes to write", len - written);
 		}
 		if (poll(pfd, 2, -1) < 0)
 		{
@@ -788,12 +800,12 @@ static int video_write(GstBaseSink *sink, GstDVBVideoSink *self, GstBuffer *buff
 				else if (wr >= queueend - queuestart)
 				{
 					queue_pop(&self->queue);
-					GST_DEBUG_OBJECT (self, "written %d queue bytes... pop entry", wr);
+					GST_TRACE_OBJECT (self, "written %d queue bytes... pop entry", wr);
 				}
 				else
 				{
 					self->queue->start += wr;
-					GST_DEBUG_OBJECT (self, "written %d queue bytes... update offset", wr);
+					GST_TRACE_OBJECT (self, "written %d queue bytes... update offset", wr);
 				}
 				GST_OBJECT_UNLOCK(self);
 				continue;

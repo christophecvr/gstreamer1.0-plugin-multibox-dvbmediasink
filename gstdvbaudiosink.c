@@ -924,6 +924,18 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		}
 		break;
 	}
+	case GST_EVENT_CAPS:
+	{
+		GstCaps *caps;
+		gst_event_parse_caps(event, &caps);
+		if (caps)
+		{
+			GST_DEBUG_OBJECT(self,"CAP %"GST_PTR_FORMAT, caps);
+		}
+		else
+			ret = FALSE;
+		break;
+	}
 	case GST_EVENT_TAG:
 	{
 		GstTagList *taglist;
