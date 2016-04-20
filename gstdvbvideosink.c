@@ -909,7 +909,7 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 			}
 		}
 		else
-			GST_INFO_OBJECT(self, "data[%d] = %d :(", i, data[i]);
+			GST_TRACE_OBJECT(self, "data[%d] = %d :(", i, data[i]);
 	}
 
 #ifdef PACK_UNPACKED_XVID_DIVX5_BITSTREAM
@@ -987,7 +987,7 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 			if (data_len - pos < 13) break;
 			if (sscanf((char*)data+pos, "DivX%d%c%d%cp", &tmp1, &c1, &tmp2, &c2) == 4 && (c1 == 'b' || c1 == 'B') && (c2 == 'p' || c2 == 'P')) 
 			{
-				GST_INFO_OBJECT (self, "%s seen... already packed!", (char*)data+pos);
+				GST_DEBUG_OBJECT (self, "%s seen... already packed!", (char*)data+pos);
 				self->must_pack_bitstream = FALSE;
 				break;
 			}
