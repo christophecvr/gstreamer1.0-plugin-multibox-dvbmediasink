@@ -307,7 +307,7 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 	self->aac_adts_header_valid = FALSE;
 	self->pesheader_buffer = NULL;
 	self->cache = NULL;
-	self->playing = self->flushing = self->unlocking = self->paused = FALSE;
+	self->playing = self->flushing = self->unlocking = self->paused = self->first_paused = FALSE;
 	self->pts_written = self->using_dts_downmix = self->first_paused = FALSE;
 	self->lastpts = 0;
 	self->timestamp_offset = 0;
@@ -799,7 +799,7 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 	switch (GST_EVENT_TYPE(event))
 	{
 	case GST_EVENT_FLUSH_START:
-		if(self->flushed && !self->playing && self->using_dts_downmix)
+		if(self->flushed && !self->playing && self->using_dts_downmix && (!self->paused || self->first_paused))
 		{ 
 			self->playing = TRUE;
 			self->ok_to_write = 1;
@@ -826,7 +826,7 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		}
 		GST_OBJECT_UNLOCK(self);
 		/* flush while media is playing requires a delay before rendering */
-		if(self->using_dts_downmix)
+		if(self->using_dts_downmix && (!self->paused || self->first_paused))
 		{
 			self->playing = FALSE;
 			self->ok_to_write = 0;
@@ -1283,12 +1283,12 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 	gint i = 0;
 	if (self->ok_to_write == 0)
 	{
-		/* wait 1 seconds after flush and new segment */
+		// wait 1 seconds after flush and new segment 
 		self->flushed = FALSE;
 		self->ok_to_write = 1;
 		self->playing = TRUE;
-		gst_sleepms(1000);
-		GST_INFO_OBJECT(self,"RESUME PLAY AFTER FLUSH + 1 SECOND");
+		gst_sleepms(1200);
+		GST_INFO_OBJECT(self,"RESUME PLAY AFTER FLUSH + 1,2 SECOND");
 	}
 	if (self->bypass <= AUDIOTYPE_UNKNOWN)
 	{

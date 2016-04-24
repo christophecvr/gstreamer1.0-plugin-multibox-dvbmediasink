@@ -403,7 +403,7 @@ static void gst_dvbvideosink_init(GstDVBVideoSink *self)
 	self->num_non_keyframes = 0;
 	self->prev_frame = NULL;
 #endif
-	self->paused = self->playing = self->unlocking = self->flushing = FALSE;
+	self->paused = self->playing = self->unlocking = self->flushing = self->first_paused = FALSE;
 	self->pts_written = self->using_dts_downmix = FALSE;
 	self->lastpts = 0;
 	self->timestamp_offset = 0;
@@ -518,7 +518,7 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 	switch (GST_EVENT_TYPE (event))
 	{
 	case GST_EVENT_FLUSH_START:
-		if(self->flushed && !self->playing && self->using_dts_downmix)
+		if(self->flushed && !self->playing && self->using_dts_downmix && !self->paused)
 		{ 
 			self->playing = TRUE;
 			self->ok_to_write = 1;
@@ -539,7 +539,7 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		self->flushing = FALSE;
 		GST_OBJECT_UNLOCK(self);
 		/* flush while media is playing requires a delay before rendering */
-		if (self->using_dts_downmix)
+		if (self->using_dts_downmix && !self->paused)
 		{
 			self->ok_to_write = 0;
 			self->playing = FALSE;
@@ -857,8 +857,8 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 			self->flushed = FALSE;
 			self->ok_to_write = 1;
 			self->playing = TRUE;
-			gst_sleepms(1000);
-			GST_INFO_OBJECT(self,"RESUME PLAY AFTER FLUSH + 1 SECOND");
+			gst_sleepms(1200);
+			GST_INFO_OBJECT(self,"RESUME PLAY AFTER FLUSH + 1,2 SECOND");
 	}
 	GstMapInfo map, pesheadermap, codecdatamap;
 	gst_buffer_map(buffer, &map, GST_MAP_READ);
@@ -2028,6 +2028,7 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_READY_TO_PAUSED");
 		self->paused = TRUE;
+		self->first_paused = TRUE;
 		if (self->fd >= 0)
 		{
 #ifdef DREAMBOX
@@ -2079,6 +2080,7 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 		if (self->fd >= 0 && self->paused) ioctl(self->fd, VIDEO_CONTINUE);
+		self->first_paused = FALSE;
 		self->paused = FALSE;
 		break;
 	default:
