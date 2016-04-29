@@ -64,7 +64,7 @@
 #include <config.h>
 #endif
 
-#if defined(__sh__) || defined(SPARK)
+#ifdef __sh__
 #include <linux/dvb/stm_ioctls.h>
 #endif
 
@@ -989,7 +989,7 @@ static int audio_write(GstDVBAudioSink *self, GstBuffer *buffer, size_t start, s
 		{
 			GST_LOG_OBJECT(self, "going into poll, have %d bytes to write", len - written);
 		}
-#if defined(__sh__) && !defined(CHECK_DRAIN)
+#ifndef CHECK_DRAIN
 		pfd[1].revents = POLLOUT;
 #else
 		if (poll(pfd, 2, -1) < 0)
@@ -1496,7 +1496,7 @@ static gboolean gst_dvbaudiosink_stop(GstBaseSink * basesink)
 
 static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, GstStateChange transition)
 {
-	GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
+	GstStateChangeReturn ret = GST_STATE_CHANGE_FAILURE;
 	GstDVBAudioSink *self = GST_DVBAUDIOSINK(element);
 
 	switch(transition)
@@ -1528,14 +1528,6 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		if (self->fd >= 0) ioctl(self->fd, AUDIO_CONTINUE);
 		self->paused = FALSE;
 		break;
-	default:
-		break;
-	}
-
-	ret = GST_ELEMENT_CLASS(parent_class)->change_state(element, transition);
-
-	switch(transition)
-	{
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PLAYING_TO_PAUSED");
 		self->paused = TRUE;
@@ -1556,6 +1548,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		break;
 	}
 
+	ret = GST_ELEMENT_CLASS(parent_class)->change_state(element, transition);
 	return ret;
 }
 

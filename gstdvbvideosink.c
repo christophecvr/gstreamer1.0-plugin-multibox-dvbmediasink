@@ -64,7 +64,7 @@
 #include <config.h>
 #endif
 
-#if defined(__sh__) || defined(SPARK)
+#ifdef __sh__
 #include <linux/dvb/stm_ioctls.h>
 #endif
 
@@ -2015,7 +2015,7 @@ static gboolean gst_dvbvideosink_stop(GstBaseSink *basesink)
 
 static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, GstStateChange transition)
 {
-	GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
+	GstStateChangeReturn ret = GST_STATE_CHANGE_FAILURE;
 	GstDVBVideoSink *self = GST_DVBVIDEOSINK (element);
 	FILE *f;
 
@@ -2083,14 +2083,6 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 		self->first_paused = FALSE;
 		self->paused = FALSE;
 		break;
-	default:
-		break;
-	}
-
-	ret = GST_ELEMENT_CLASS(parent_class)->change_state(element, transition);
-
-	switch (transition)
-	{
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PLAYING_TO_PAUSED");
 		self->paused = TRUE;
@@ -2108,6 +2100,7 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 		break;
 	}
 
+	ret = GST_ELEMENT_CLASS(parent_class)->change_state(element, transition);
 	return ret;
 }
 
