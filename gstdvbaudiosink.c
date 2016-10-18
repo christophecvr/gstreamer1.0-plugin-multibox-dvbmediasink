@@ -110,7 +110,11 @@ static guint gst_dvbaudiosink_signals[LAST_SIGNAL] = { 0 };
 		"audio/mpeg, " \
 		"mpegversion = (int) { 2, 4 }, " \
 		"profile = (string) lc, " \
-		"stream-format = (string) { raw, adts, adif, loas }, " \
+		"stream-format = (string) { raw, adts, adif }, " \
+		"framed = (boolean) true; " \
+		"audio/mpeg, " \
+		"mpegversion = (int) { 2, 4 }, " \
+		"stream-format = (string) loas, " \
 		"framed = (boolean) true; "
 #else
 #define MPEGCAPS \
@@ -502,6 +506,11 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 				if (stream_type && !strcmp(stream_type, "adts"))
 				{
 					GST_INFO_OBJECT(self, "MIMETYPE %s version %d(AAC-ADTS)", type, mpegversion);
+				}
+				else if (stream_type && !strcmp(stream_type, "loas"))
+				{
+					bypass = AUDIOTYPE_AAC_HE;
+					break;
 				}
 				else
 				{
