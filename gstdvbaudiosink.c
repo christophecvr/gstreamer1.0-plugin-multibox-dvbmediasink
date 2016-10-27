@@ -1505,7 +1505,7 @@ static gboolean gst_dvbaudiosink_stop(GstBaseSink * basesink)
 
 static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, GstStateChange transition)
 {
-	GstStateChangeReturn ret = GST_STATE_CHANGE_FAILURE;
+	GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
 	GstDVBAudioSink *self = GST_DVBAUDIOSINK(element);
 
 	switch(transition)
@@ -1537,6 +1537,14 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		if (self->fd >= 0) ioctl(self->fd, AUDIO_CONTINUE);
 		self->paused = FALSE;
 		break;
+	default:
+		break;
+	}
+
+	ret = GST_ELEMENT_CLASS(parent_class)->change_state(element, transition);
+
+	switch(transition)
+	{
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PLAYING_TO_PAUSED");
 		self->paused = TRUE;
@@ -1557,7 +1565,6 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		break;
 	}
 
-	ret = GST_ELEMENT_CLASS(parent_class)->change_state(element, transition);
 	return ret;
 }
 
