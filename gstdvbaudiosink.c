@@ -998,7 +998,7 @@ static int audio_write(GstDVBAudioSink *self, GstBuffer *buffer, size_t start, s
 		{
 			GST_LOG_OBJECT(self, "going into poll, have %d bytes to write", len - written);
 		}
-#ifndef CHECK_DRAIN
+#if defined(__sh__) && !defined(CHECK_DRAIN)
 		pfd[1].revents = POLLOUT;
 #else
 		if (poll(pfd, 2, -1) < 0)
