@@ -439,7 +439,10 @@ static GstCaps *gst_dvbaudiosink_get_caps(GstBaseSink *basesink, GstCaps *filter
 	);
 
 #if defined(HAVE_DTS) && !defined(HAVE_DTSDOWNMIX)
+	if (!get_downmix_setting())
+	{
 	gst_caps_append(caps, gst_caps_from_string(DTSCAPS));
+	}
 #endif
 
 #ifdef HAVE_DTSDOWNMIX
