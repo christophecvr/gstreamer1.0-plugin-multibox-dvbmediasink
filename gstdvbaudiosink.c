@@ -768,7 +768,7 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 		return FALSE;
 	}
 
-	GST_INFO_OBJECT(self, "setting dvb mode 0x%02x\n", bypass);
+	GST_INFO_OBJECT(self, "set bypass 0x%02x", bypass);
 
 	if (self->playing)
 	{
@@ -796,6 +796,7 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 	if (self->fd < 0 || ioctl(self->fd, AUDIO_SET_BYPASS_MODE, bypass) < 0)
 	{
 		GST_ELEMENT_ERROR(self, STREAM, TYPE_NOT_FOUND,(NULL),("hardware decoder can't be set to bypass mode type %s", type));
+		GST_INFO_OBJECT(self, "AUDIO BYPASS 0x%02x CAN NOT BE SET", bypass);
 		return FALSE;
 	}
 #endif
@@ -803,6 +804,7 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 	self->playing = TRUE;
 
 	self->bypass = bypass;
+	GST_INFO_OBJECT(self, "AUDIO PLAY STARTED ON BY-PASS 0x%02x", bypass);
 	return TRUE;
 }
 
