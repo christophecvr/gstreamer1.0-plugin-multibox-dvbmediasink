@@ -475,6 +475,8 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 	self->skip = 0;
 	self->aac_adts_header_valid = FALSE;
 
+	GST_INFO_OBJECT (self, "caps = %" GST_PTR_FORMAT, caps);
+
 	if (self->codec_data)
 	{
 		gst_buffer_unref(self->codec_data);
