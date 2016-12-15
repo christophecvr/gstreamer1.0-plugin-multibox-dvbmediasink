@@ -8,27 +8,23 @@ stefansat@telenet.be
 
 An example off bb file is added.
 
-This is the one I use in openpli with the modern openembedded-oe-core.
+This is the one I use in meta-oe-alliance
 
-How to use :
+How to use :  READ REMARK !
 
-For dreambox machines (dm8000 and dm800se) add --with-dreambox to DVBMEDIASINK_CONFIG.
-For vuplus machines add --with-vuplus .
-For dags machines add --with-dags.
 Some xtrend boxes need a max pcm rate off 48000.
 For those boxes add --with-max-pcmrate-48K
 
 Examples configs :
 
-dreambox dm800se : DVBMEDIASINK_CONFIG = "--with-dreambox --with-pcm --with-wma --with-wmv --with-dtsdownmix --with-eac3"
-dreambox dm8000  : DVBMEDIASINK_CONFIG = "--with-dreambox --with-pcm --with-wma --with-wmv --with-dtsdownmix --with-eac3 --with-amr --with-limited-mpeg4v2"
-vuplus           : DVBMEDIASINK_CONFIG = "--with-vuplus --with-pcm --with-eac3 --with-amr --with-wmv"
+dreambox dm800se : DVBMEDIASINK_CONFIG = "--with-machinebuild=${MACHINEBUILD} --with-pcm --with-wma --with-wmv --with-dtsdownmix --with-eac3"
+dreambox dm8000  : DVBMEDIASINK_CONFIG = "--with-machinebuild=${MACHINEBUILD} --with-pcm --with-wma --with-wmv --with-dtsdownmix --with-eac3 --with-amr --with-limited-mpeg4v2"
+vuplus           : DVBMEDIASINK_CONFIG = "--with-machinebuild=${MACHINEBUILD} --with-pcm --with-eac3 --with-amr --with-wmv"
 
-Note since 17032015 vuplus added new drivers.
-SRCDATE = "20150317"
+REMARK :
 
-All old driver vuplus support removed.
-VUPLUS audio must run in sync for vuplus add always option --with-vuplus .
-vuplus           : DVBMEDIASINK_CONFIG = "--with-vuplus --with-pcm --with-eac3 --with-wmv"
-
+Currently works are started to simplify the DVBMEDIASINK_CONFIG based on MACHINEBUILD parameter.
+This containes the right stb boxtype The list can be consulted into the Makefile of meta-alliance.
+If there is nothing for You're machine this means that the MACHINEBUILD = MACHINE. and will be the right boxtype.
+But the field used is MACHINEBUILD since this contains the correct boxtype.
 
