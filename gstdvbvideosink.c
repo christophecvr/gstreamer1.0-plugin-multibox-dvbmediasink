@@ -1730,6 +1730,25 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 	{
 	case GST_STATE_CHANGE_NULL_TO_READY:
 		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_NULL_TO_READY");
+// special debug added to check correct machinebuild during development phase
+#ifdef DREAMBOX
+		GST_INFO_OBJECT(self,"BUILD FOR DREAMBOX");
+#endif
+#ifdef VUPLUS
+		GST_INFO_OBJECT(self,"BUILD FOR VUPLUS");
+#endif
+/* 	This debug added to check that sink was build for right boxtype
+	In openatv the DVBMEDIASINK_CONFIG will in future be based on ${MACHINEBUILD}
+	Depending on that other defines and or specific machine code can be set.
+	Some extra defines will be added to configur.ac file and then be used to limit
+	code lines or change some codelines at compile time, then the final build dvbmediasink
+	can be kept small and small into memory also, cause some older stb'so have very few memory.
+	But machine build is also added as a defined var containing the stb box type , this can then be used :
+	in a if (!strcmp(machinebuild, "<stbtype>")) where stbtype comes from ${MACHINEBUILD} at compile time.
+	example for a dreambox 8000 it will be dm8000 for vuplus duo2 it will be vuduo2 for mutant hd51 it will be mutant51. */
+#ifdef machinebuild
+		GST_INFO_OBJECT(self,"BUILD FOR STB BOXTYPE %s", machinebuild);
+#endif
 		self->ok_to_write = 1;
 		break;
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
