@@ -243,15 +243,15 @@ if test "$dags" = "yes"; then
 	AC_DEFINE([DAGS],[1],[build for dags, yes or no ])
 fi
 
-AC_ARG_WITH(machinebuild,
-	AS_HELP_STRING([--with-machinebuild],[build for machine, $withval]),
-	[machinebuild=$withval],[machinebuild=generic])
-AC_SUBST(machinebuild)
-AC_DEFINE_UNQUOTED(machinebuild,"$machinebuild",[machine build])
-if test `echo "$machinebuild" | cut -b 1-2` == "dm"; then
+AC_ARG_WITH(machine,
+	AS_HELP_STRING([--with-machine],[build for machine, $withval]),
+	[machine=$withval],[machine=generic])
+AC_SUBST(machine)
+AC_DEFINE_UNQUOTED(machine,"$machine",[machine])
+if test `echo "$machine" | cut -b 1-2` == "dm"; then
 	AC_DEFINE([DREAMBOX],[1],[build for DREAMBOX ])
 fi
-if test `echo "$machinebuild" | cut -b 1-2` == "vu"; then
+if test `echo "$machine" | cut -b 1-2` == "vu"; then
 	AC_DEFINE([VUPLUS],[1],[build for VUPLUS ])
 fi
 

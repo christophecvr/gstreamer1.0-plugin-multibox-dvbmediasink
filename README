@@ -17,14 +17,12 @@ For those boxes add --with-max-pcmrate-48K
 
 Examples configs :
 
-dreambox dm800se : DVBMEDIASINK_CONFIG = "--with-machinebuild=${MACHINEBUILD} --with-pcm --with-wma --with-wmv --with-dtsdownmix --with-eac3"
-dreambox dm8000  : DVBMEDIASINK_CONFIG = "--with-machinebuild=${MACHINEBUILD} --with-pcm --with-wma --with-wmv --with-dtsdownmix --with-eac3 --with-amr --with-limited-mpeg4v2"
-vuplus           : DVBMEDIASINK_CONFIG = "--with-machinebuild=${MACHINEBUILD} --with-pcm --with-eac3 --with-amr --with-wmv"
+dreambox dm800se : DVBMEDIASINK_CONFIG = "--with-machine=${MACHINE} --with-pcm --with-wma --with-wmv --with-dtsdownmix --with-eac3"
+dreambox dm8000  : DVBMEDIASINK_CONFIG = "--with-machine=${MACHINE} --with-pcm --with-wma --with-wmv --with-dtsdownmix --with-eac3 --with-amr --with-limited-mpeg4v2"
+vuplus           : DVBMEDIASINK_CONFIG = "--with-machine=${MACHINE} --with-pcm --with-eac3 --with-amr --with-wmv"
 
 REMARK :
 
-Currently works are started to simplify the DVBMEDIASINK_CONFIG based on MACHINEBUILD parameter.
-This containes the right stb boxtype The list can be consulted into the Makefile of meta-alliance.
-If there is nothing for You're machine this means that the MACHINEBUILD = MACHINE. and will be the right boxtype.
-But the field used is MACHINEBUILD since this contains the correct boxtype.
+Currently works are started to simplify the DVBMEDIASINK_CONFIG based on MACHINE parameter.
+This containes the right stb box group for the mediasink The list can be consulted into the Makefile of meta-alliance.
 
