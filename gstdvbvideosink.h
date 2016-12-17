@@ -107,7 +107,8 @@ typedef enum {
 	STREAMTYPE_VB9 = 23,
 	STREAMTYPE_SPARK = 21
 } t_stream_type;
-#else
+#endif
+#if !defined(TYPE2) && !defined(DREAMBOX)
 typedef enum {
 	STREAMTYPE_UNKNOWN = -1,
 	STREAMTYPE_MPEG2 = 0,
