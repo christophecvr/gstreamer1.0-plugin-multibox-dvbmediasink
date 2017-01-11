@@ -120,7 +120,7 @@ struct _GstDVBAudioSink
 	int unlockfd[2];
 
 	int skip;
-	int bypass;
+	t_audio_type bypass;
 	int fixed_buffersize;
 	GstClockTime fixed_buffertimestamp;
 	GstClockTime fixed_bufferduration;
