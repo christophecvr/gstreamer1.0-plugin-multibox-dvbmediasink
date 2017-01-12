@@ -119,7 +119,22 @@ void gst_sleepus(uint32_t usec)
 	errno = olderrno;
 }
 
-gboolean get_downmix_setting()
+gboolean get_dts_downmix_setting()
+{
+	gboolean ret = FALSE;
+	FILE *f;
+	char buffer[32] = {0};
+	f = fopen("/proc/stb/audio/dts", "r");
+	if (f)
+	{
+		fread(buffer, sizeof(buffer), 1, f);
+		fclose(f);
+	}
+	ret = !strncmp(buffer, "downmix", 7);
+	return ret;
+}
+
+gboolean get_ac3_downmix_setting()
 {
 	gboolean ret = FALSE;
 	FILE *f;
@@ -148,3 +163,19 @@ gboolean get_downmix_ready()
 	ret = !strncmp(buffer, "READY", 5);
 	return ret;
 }
+
+gboolean is_video_ready()
+{
+	gboolean ret = FALSE;
+	FILE *f;
+	char buffer[32] = {0};
+	f = fopen("/tmp/gstdvbvideosink", "r");
+	if (f)
+	{
+		fread(buffer, sizeof(buffer), 1, f);
+		fclose(f);
+	}
+	ret = !strncmp(buffer, "READY", 5);
+	return ret;
+}
+

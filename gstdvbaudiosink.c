@@ -84,7 +84,9 @@ enum
 {
 	PROP_0,
 	PROP_SYNC,
-	PROP_LAST,
+	PROP_ASYNC,
+	PROP_RENDER_DELAY,
+	PROP_LAST
 };
 
 
@@ -139,9 +141,26 @@ static guint gst_dvbaudiosink_signals[LAST_SIGNAL] = { 0 };
 #define LPCMCAPS \
 		"audio/x-private1-lpcm; "
 
+/* DTSCAPS SUPPORTED IN THIS SINK ARE ONLY THAT FROM
+* standard DVD's or blurays or older base DTS 5.1.
+* They all have endianness 4321. p.s. the dvd has his
+* own x-private1-dts cap and they are normally all suported
+* Request to stb manufacturers about the cd audio cap which has
+* a depth of 14(two bits are set to zero to save speakers and you're ears)
+* but also it has 1024 blok-size instead of 512
+* and 4096 frame-size instead of 2012 has been send.
+* Strictly speaking it should work but maybe there are some pess_header
+* changes needed for this cd dts audio wav media type 
+* For now we made the use off cd audio cap not possible.
+* So if You want dts_audio_cd support just install gstreamer1.0-plugins-bad-dtsdec.
+* Only by stb's who have been build with option --with-dtsdownmix do not and may not !!
+* install the plugin from gstreamer.
+*/
+
 #define DTSCAPS \
 		"audio/x-dts, " \
-		"framed =(boolean) true; " \
+		"framed =(boolean) true, " \
+		"endianness = (int) 4321; " \
 		"audio/x-private1-dts, " \
 		"framed =(boolean) true; "
 
@@ -198,7 +217,7 @@ GST_STATIC_PAD_TEMPLATE(
 
 #define AUDIO_ENCODING_UNKNOWN  0xFF
 
-unsigned int bypass_to_encoding (unsigned int bypass)
+t_audio_type bypass_to_encoding (t_audio_type bypass)
 {
 #ifdef AUDIO_SET_ENCODING
 	switch(bypass)
@@ -274,6 +293,12 @@ static void gst_dvbaudiosink_class_init(GstDVBAudioSinkClass *self)
 	g_object_class_install_property (gobject_class, PROP_SYNC,
 			g_param_spec_boolean ("sync", "Sync", "Sync on the clock", FALSE,
 					G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+	g_object_class_install_property (gobject_class, PROP_ASYNC,
+			g_param_spec_boolean ("async", "Async", "preroll", FALSE,
+					G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+	g_object_class_install_property (gobject_class, PROP_RENDER_DELAY,
+			g_param_spec_uint64 ("render-delay", "Renderdelay", "Render-delay increase latency",
+				0, G_MAXUINT64, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
 	gstbasesink_class->start = GST_DEBUG_FUNCPTR(gst_dvbaudiosink_start);
 	gstbasesink_class->stop = GST_DEBUG_FUNCPTR(gst_dvbaudiosink_stop);
@@ -308,11 +333,11 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 	self->fixed_buffersize = 0;
 	self->fixed_bufferduration = GST_CLOCK_TIME_NONE;
 	self->fixed_buffertimestamp = GST_CLOCK_TIME_NONE;
-	self->aac_adts_header_valid = FALSE;
+	self->aac_adts_header_valid = self->pass_eos = FALSE;
 	self->pesheader_buffer = NULL;
 	self->cache = NULL;
 	self->playing = self->flushing = self->unlocking = self->paused = self->first_paused = FALSE;
-	self->pts_written = self->using_dts_downmix = self->first_paused = FALSE;
+	self->pts_written = self->using_dts_downmix = self->synchronized = self->dts_cd = FALSE;
 	self->lastpts = 0;
 	self->timestamp_offset = 0;
 	self->queue = NULL;
@@ -325,13 +350,31 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 #else
 	self->use_set_encoding = FALSE;
 #endif
-#ifdef VUPLUS
-	gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
-	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
-#else
-	gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
-	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
-#endif
+	if (!strcmp(machine, "hd51") || !strcmp(machine, "gb7356"))
+	{
+		gst_base_sink_set_sync(GST_BASE_SINK(self), TRUE);
+		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
+	}
+	else
+	{
+		gst_base_sink_set_sync(GST_BASE_SINK(self), TRUE);
+		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
+	}
+
+	if (gst_base_sink_get_sync(GST_BASE_SINK(self)))
+	{
+		GST_INFO_OBJECT(self, "sync = TRUE");
+		self->synchronized = TRUE;
+	}
+	else
+	{
+		GST_INFO_OBJECT(self, "sync = FALSE");
+		self->synchronized = FALSE;
+	}
+	if (gst_base_sink_is_async_enabled(GST_BASE_SINK(self)))
+		GST_INFO_OBJECT(self, "async = TRUE");
+	else
+		GST_INFO_OBJECT(self, "async = FALSE");
 }
 
 static void gst_dvbaudiosink_dispose(GObject *obj)
@@ -352,36 +395,101 @@ static void gst_dvbaudiosink_set_property (GObject * object, guint prop_id, cons
 
 	switch (prop_id)
 	{
-	/* sink should only work with sync turned off, ignore all attempts to change it */
-	case PROP_SYNC:
-		GST_INFO_OBJECT(self, "ignoring attempt to change 'sync' to '%d'", g_value_get_boolean(value));
-		break;
-	default:
-		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-		break;
+		/* sink should only work with sync turned off, ignore all attempts to change it *
+		 * looks like no element tries to change this setting so leave it allowed for now *
+		 * subject to changes in future Most stb do support sync settings *
+		 * exception on this are the old dreamboxes and vuplus boxes and maybe some other ol ones */
+		case PROP_SYNC:
+			gst_base_sink_set_sync(GST_BASE_SINK(object), g_value_get_boolean(value));
+			GST_INFO_OBJECT(self, "CHANGE sync setting to sync = %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			if (gst_base_sink_get_sync(GST_BASE_SINK(object)))
+			{
+				GST_INFO_OBJECT(self, "SET gstreamer sync TO TRUE ok");
+				/* the driver should(if the driver support that setting) only synchronize if gstreamer runs sync false mode */
+				if(ioctl(self->fd, AUDIO_SET_AV_SYNC, FALSE) >= 0)
+					GST_INFO_OBJECT(self," AUDIO_SET_AV_SYNC FALSE accepted by driver");
+				else if (self->fd >= 0)
+					GST_ERROR_OBJECT(self,"AUDIO_SET_AV_SYNC FALSE ***NOT*** accepted by driver critical ioctl error");
+				self->synchronized = TRUE;
+			}
+			else
+			{
+				GST_INFO_OBJECT(self, "SET gstreamer sync to FALSE OK");
+				if(ioctl(self->fd, AUDIO_SET_AV_SYNC, TRUE) >= 0)
+					GST_INFO_OBJECT(self," AUDIO_SET_AV_SYNC TRUE accepted by driver");
+				else if (self->fd >= 0)
+					GST_ERROR_OBJECT(self,"AUDIO_SET_AV_SYNC TRUE ***NOT*** accepted by driver critical ioctl error");
+				self->synchronized = FALSE;
+				GST_INFO_OBJECT(self, "SET sync to FALSE OK");
+			}
+			break;
+		case PROP_ASYNC:
+			gst_base_sink_set_async_enabled(GST_BASE_SINK(object), g_value_get_boolean(value));
+			GST_INFO_OBJECT(self, "CHANGE async setting to sync = %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			if (gst_base_sink_is_async_enabled(GST_BASE_SINK(object)))
+			{
+				GST_INFO_OBJECT(self, "SET gstreamer async TO TRUE ok");
+				self->synchronized = TRUE;
+			}
+			else
+			{
+				GST_INFO_OBJECT(self, "SET gstreamer async to FALSE OK");
+				self->synchronized = FALSE;
+			}
+			GST_INFO_OBJECT(self, "ignoring attempt to change 'async' to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			break;
+		case PROP_RENDER_DELAY:
+			gst_base_sink_set_render_delay(GST_BASE_SINK(object), g_value_get_uint64(value));
+			GST_INFO_OBJECT(self, "Change renderdelay to  = %" G_GUINT64_FORMAT , g_value_get_uint64(value));
+			if (gst_base_sink_get_render_delay(GST_BASE_SINK(object)) == g_value_get_uint64(value))
+				GST_INFO_OBJECT(self, "Renderdelay changed to  %" G_GUINT64_FORMAT , g_value_get_uint64(value));
+			else
+				GST_WARNING_OBJECT(self, "Renderdelay change to  %" G_GUINT64_FORMAT " FAILURE", g_value_get_uint64(value));
+			break;
+		default:
+			G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+			break;
 	}
 }
 
 static void gst_dvbaudiosink_get_property (GObject * object, guint prop_id, GValue * value, GParamSpec * pspec)
 {
 	GstDVBAudioSink *self = GST_DVBAUDIOSINK (object);
-	GST_INFO_OBJECT(self, "Get sync property %u", prop_id);
 
 	switch (prop_id)
 	{
-	case PROP_SYNC:
-		g_value_set_boolean(value, gst_base_sink_get_sync(GST_BASE_SINK(object)));
-		break;
-	default:
-		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-		break;
+		case PROP_SYNC:
+			g_value_set_boolean(value, gst_base_sink_get_sync(GST_BASE_SINK(object)));
+			GST_INFO_OBJECT(self, "Requested by other element SYNC VALUE = %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			break;
+		case PROP_ASYNC:
+			g_value_set_boolean(value, gst_base_sink_is_async_enabled(GST_BASE_SINK(object)));
+			GST_INFO_OBJECT(self, "Requested by other element ASYNC VALUE = %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			break;
+		case PROP_RENDER_DELAY:
+			g_value_set_uint64(value, gst_base_sink_get_render_delay(GST_BASE_SINK(object)));
+			GST_INFO_OBJECT(self, "Requested by other element RENDER DELAY = %" G_GUINT64_FORMAT , g_value_get_uint64(value));
+			break;
+		default:
+			G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+			break;
 	}
 }
 
 static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
 {
 	gint64 cur = 0;
-	if (self->fd < 0 || !self->playing || !self->pts_written){return GST_CLOCK_TIME_NONE;}
+	if (self->fd < 0 || !self->pts_written)
+		return GST_CLOCK_TIME_NONE;
+
+	if(!self->playing && self->lastpts > 0)
+	{
+		cur = self->lastpts;
+		cur *= 11111;
+		cur -= self->timestamp_offset;
+		return cur;
+		return GST_CLOCK_TIME_NONE;
+	}
 
 	ioctl(self->fd, AUDIO_GET_PTS, &cur);
 	if (cur)
@@ -438,19 +546,12 @@ static GstCaps *gst_dvbaudiosink_get_caps(GstBaseSink *basesink, GstCaps *filter
 #endif
 	);
 
-#if defined(HAVE_DTS) && !defined(HAVE_DTSDOWNMIX) && defined(VUPLUS)
-	if (!get_downmix_setting())
-	{
-	gst_caps_append(caps, gst_caps_from_string(DTSCAPS));
-	}
-#endif
-
-#if defined(HAVE_DTS) && !defined(HAVE_DTSDOWNMIX) && !defined(VUPLUS)
+#if defined(HAVE_DTS) && !defined(HAVE_DTSDOWNMIX)
+	/* for the time the static cap has been limited to not be used in case of dts_audio_cd media */
 	gst_caps_append(caps, gst_caps_from_string(DTSCAPS));
 #endif
-
 #ifdef HAVE_DTSDOWNMIX
-	if (!get_downmix_setting())
+	if (!get_ac3_downmix_setting())
 	{
 		gst_caps_append(caps, gst_caps_from_string(DTSCAPS));
 	}
@@ -470,7 +571,9 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 	GstDVBAudioSink *self = GST_DVBAUDIOSINK(basesink);
 	GstStructure *structure = gst_caps_get_structure(caps, 0);
 	const char *type = gst_structure_get_name(structure);
-	t_audio_type bypass = AUDIOTYPE_UNKNOWN;
+	t_audio_type previous_bypass = self->bypass;
+	self->bypass = AUDIOTYPE_UNKNOWN;
+	gboolean was_playing = self->playing;
 
 	self->skip = 0;
 	self->aac_adts_header_valid = FALSE;
@@ -495,11 +598,11 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 				gst_structure_get_int(structure, "layer", &layer);
 				if (layer == 3)
 				{
-					bypass = AUDIOTYPE_MP3;
+					self->bypass = AUDIOTYPE_MP3;
 				}
 				else
 				{
-					bypass = AUDIOTYPE_MPEG;
+					self->bypass = AUDIOTYPE_MPEG;
 				}
 				GST_INFO_OBJECT(self, "MIMETYPE %s version %d layer %d", type, mpegversion, layer);
 				break;
@@ -518,7 +621,7 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 				}
 				else if (stream_type && !strcmp(stream_type, "loas"))
 				{
-					bypass = AUDIOTYPE_AAC_HE;
+					self->bypass = AUDIOTYPE_AAC_HE;
 					break;
 				}
 				else
@@ -585,7 +688,7 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 						}
 					}
 				}
-				bypass = AUDIOTYPE_AAC_PLUS; // always use AAC+ ADTS yet..
+				self->bypass = AUDIOTYPE_AAC_PLUS; // always use AAC+ ADTS yet..
 				break;
 			}
 			default:
@@ -596,40 +699,51 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 	else if (!strcmp(type, "audio/x-ac3"))
 	{
 		GST_INFO_OBJECT(self, "MIMETYPE %s",type);
-		bypass = AUDIOTYPE_AC3;
+		self->bypass = AUDIOTYPE_AC3;
 	}
 	else if (!strcmp(type, "audio/x-eac3"))
 	{
 		GST_INFO_OBJECT(self, "MIMETYPE %s",type);
-		bypass = AUDIOTYPE_AC3_PLUS;
+		self->bypass = AUDIOTYPE_AC3_PLUS;
 	}
 	else if (!strcmp(type, "audio/x-private1-dts"))
 	{
 		GST_INFO_OBJECT(self, "MIMETYPE %s(DVD Audio - 2 byte skipping)",type);
-		bypass = AUDIOTYPE_DTS;
+		self->bypass = AUDIOTYPE_DTS;
 		self->skip = 2;
 	}
 	else if (!strcmp(type, "audio/x-private1-ac3"))
 	{
 		GST_INFO_OBJECT(self, "MIMETYPE %s(DVD Audio - 2 byte skipping)",type);
-		bypass = AUDIOTYPE_AC3;
+		self->bypass = AUDIOTYPE_AC3;
 		self->skip = 2;
 	}
 	else if (!strcmp(type, "audio/x-private1-eac3"))
 	{
 		GST_INFO_OBJECT(self, "MIMETYPE %s(DVD Audio - 2 byte skipping)",type);
-		bypass = AUDIOTYPE_AC3_PLUS;
+		self->bypass = AUDIOTYPE_AC3_PLUS;
 		self->skip = 2;
 	}
 	else if (!strcmp(type, "audio/x-private1-lpcm"))
 	{
 		GST_INFO_OBJECT(self, "MIMETYPE %s(DVD Audio)",type);
-		bypass = AUDIOTYPE_LPCM;
+		self->bypass = AUDIOTYPE_LPCM;
 	}
 	else if (!strcmp(type, "audio/x-dts"))
 	{
+		/* waiting on manufacturers answer about this type of dts but it is already prepared to be used */
+		gint endianness = 0;
+		gboolean str_endianness = gst_structure_get_int(structure, "endianness", &endianness);
+		if(str_endianness && endianness == 1234)
+		{
+			GST_INFO_OBJECT (self, "MEDIA IS DTS_AUDIO_CD");
+			self->dts_cd = TRUE;
+			self->bypass = AUDIOTYPE_DTS_HD;
+		}
+		else
+			self->bypass = AUDIOTYPE_DTS;
+
 		GST_INFO_OBJECT(self, "MIMETYPE %s",type);
-		bypass = AUDIOTYPE_DTS;
 	}
 	else if (!strcmp(type, "audio/x-wma"))
 	{
@@ -642,7 +756,7 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 		gst_structure_get_int(structure, "channels", &channels);
 		gst_structure_get_int(structure, "block_align", &block_align);
 		GST_INFO_OBJECT(self, "MIMETYPE %s",type);
-		bypass = (wmaversion > 2) ? AUDIOTYPE_WMA_PRO : AUDIOTYPE_WMA;
+		self->bypass = (wmaversion > 2) ? AUDIOTYPE_WMA_PRO : AUDIOTYPE_WMA;
 		if (codec_data)
 		{
 			guint8 *data;
@@ -695,7 +809,7 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 			self->codec_data = gst_buffer_copy(gst_value_get_buffer(codec_data));
 		}
 		GST_INFO_OBJECT(self, "MIMETYPE %s",type);
-		bypass = AUDIOTYPE_AMR;
+		self->bypass = AUDIOTYPE_AMR;
 	}
 	else if (!strcmp(type, XRAW))
 	{
@@ -761,7 +875,7 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 		self->fixed_buffertimestamp = GST_CLOCK_TIME_NONE;
 		self->fixed_bufferduration = GST_SECOND * (GstClockTime)self->fixed_buffersize / (GstClockTime)byterate;
 		GST_INFO_OBJECT(self, "MIMETYPE %s", type);
-		bypass = AUDIOTYPE_RAW;
+		self->bypass = AUDIOTYPE_RAW;
 		gst_buffer_unmap(self->codec_data, &map);
 	}
 	else
@@ -770,17 +884,18 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 		return FALSE;
 	}
 
-	GST_INFO_OBJECT(self, "set bypass 0x%02x", bypass);
+	GST_INFO_OBJECT(self, "set bypass 0x%02x", self->bypass);
 
-	if (self->playing)
+	if (was_playing && self->bypass != previous_bypass)
 	{
-		if (self->fd >= 0) ioctl(self->fd, AUDIO_STOP, 0);
+		if (self->fd >= 0)
+			ioctl(self->fd, AUDIO_STOP, 0);
 		self->playing = FALSE;
 	}
 #ifdef AUDIO_SET_ENCODING
 	if (self->use_set_encoding)
 	{
-		unsigned int encoding = bypass_to_encoding(bypass);
+		unsigned int encoding = bypass_to_encoding(self->bypass);
 		if (self->fd < 0 || ioctl(self->fd, AUDIO_SET_ENCODING, encoding) < 0)
 		{
 			GST_ELEMENT_WARNING(self, STREAM, DECODE,(NULL),("hardware decoder can't be set to encoding %i", encoding));
@@ -788,37 +903,42 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 	}
 	else
 	{
-		if (self->fd < 0 || ioctl(self->fd, AUDIO_SET_BYPASS_MODE, bypass) < 0)
+		if (self->fd < 0 || ioctl(self->fd, AUDIO_SET_BYPASS_MODE, self->bypass) < 0)
 		{
 			GST_ELEMENT_ERROR(self, STREAM, TYPE_NOT_FOUND,(NULL),("hardware decoder can't be set to bypass mode type %s", type));
 			return FALSE;
 		}
 	}
 #else
-	if (self->fd < 0 || ioctl(self->fd, AUDIO_SET_BYPASS_MODE, bypass) < 0)
+	if (self->fd < 0 || ioctl(self->fd, AUDIO_SET_BYPASS_MODE, self->bypass) < 0)
 	{
 		GST_ELEMENT_ERROR(self, STREAM, TYPE_NOT_FOUND,(NULL),("hardware decoder can't be set to bypass mode type %s", type));
-		GST_INFO_OBJECT(self, "AUDIO BYPASS 0x%02x CAN NOT BE SET", bypass);
 		return FALSE;
 	}
 #endif
-	if (self->fd >= 0) ioctl(self->fd, AUDIO_PLAY);
-	self->playing = TRUE;
-
-	self->bypass = bypass;
-	GST_INFO_OBJECT(self, "AUDIO PLAY STARTED ON BY-PASS 0x%02x", bypass);
+		if(was_playing && self->fd >= 0)
+		{
+			ioctl(self->fd, AUDIO_PLAY);
+			self->playing = TRUE;
+			GST_INFO_OBJECT(self, "AUDIO PLAY STARTED ON BY-PASS 0x%02x", self->bypass);
+		}
+		else
+		{
+			GST_INFO_OBJECT(self, "AUDIO READY TO PLAY ON BY-PASS 0x%02x", self->bypass);
+		}
 	return TRUE;
 }
 
 static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 {
 	GstDVBAudioSink *self = GST_DVBAUDIOSINK(sink);
-	GST_INFO_OBJECT(self, "EVENT %s", gst_event_type_get_name(GST_EVENT_TYPE(event)));
+	GST_DEBUG_OBJECT(self, "EVENT %s", gst_event_type_get_name(GST_EVENT_TYPE(event)));
 	gboolean ret = TRUE;
 
 	switch (GST_EVENT_TYPE(event))
 	{
 	case GST_EVENT_FLUSH_START:
+		GST_INFO_OBJECT (self,"GST_EVENT_FLUSH_START");
 		if(self->flushed && !self->playing && self->using_dts_downmix && (!self->paused || self->first_paused))
 		{ 
 			self->playing = TRUE;
@@ -830,6 +950,7 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		write(self->unlockfd[1], "\x01", 1);
 		break;
 	case GST_EVENT_FLUSH_STOP:
+		GST_INFO_OBJECT (self,"GST_EVENT_FLUSH_STOP");
 		if (self->fd >= 0) ioctl(self->fd, AUDIO_CLEAR_BUFFER);
 		GST_OBJECT_LOCK(self);
 		while (self->queue)
@@ -853,46 +974,65 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		}
 		self->flushed = TRUE;
 		break;
+	case GST_EVENT_STREAM_GROUP_DONE:
+		self->pass_eos = TRUE;
+		break;
 	case GST_EVENT_EOS:
 	{
-		gboolean pass_eos = FALSE;
-		struct pollfd pfd[2];
+		GST_INFO_OBJECT (self, "GST_EVENT_EOS");
 #ifdef AUDIO_FLUSH
 		if (self->fd >= 0) ioctl(self->fd, AUDIO_FLUSH, 1/*NONBLOCK*/); //Notify the player that no addionional data will be injected
 #endif
+		struct pollfd pfd[2];
 		pfd[0].fd = self->unlockfd[0];
 		pfd[0].events = POLLIN;
 		pfd[1].fd = self->fd;
 		pfd[1].events = POLLIN;
+
+		int x = 0;
+		int retval = 0;
 		GST_BASE_SINK_PREROLL_UNLOCK(sink);
-		while (1)
+		while (x < 40)
 		{
-			int retval = poll(pfd, 2, 250);
+			retval = poll(pfd, 2, 250);
 			if (retval < 0)
 			{
-				perror("poll in EVENT_EOS");
+				GST_INFO_OBJECT(self,"poll in EVENT_EOS");
 				ret = FALSE;
 				break;
 			}
-
-			if (pfd[0].revents & POLLIN)
+			else if ((pfd[0].revents & POLLIN) == POLLIN)
 			{
-				GST_DEBUG_OBJECT(self, "wait EOS aborted!!\n");
+				GST_INFO_OBJECT(self, "wait EOS aborted!! media is not ended");
 				ret = FALSE;
 				break;
 			}
-
-			if (pfd[1].revents & POLLIN)
+			else if ((pfd[1].revents & POLLIN) == POLLIN)
 			{
-				GST_DEBUG_OBJECT(self, "got buffer empty from driver!\n");
+				GST_INFO_OBJECT(self, "got buffer empty from driver!");
 				break;
 			}
-
-			if (sink->flushing)
+			else if ((pfd[1].revents & POLLPRI) == POLLPRI)
 			{
-				GST_DEBUG_OBJECT(self, "wait EOS flushing!!\n");
+				GST_INFO_OBJECT(self, "got buffer HIPRI empty from driver!");
+				break;
+			}
+			else if (sink->flushing)
+			{
+				GST_INFO_OBJECT(self, "wait EOS flushing!!");
 				ret = FALSE;
 				break;
+			}
+			else
+			{
+				// the buffer empty not always comes actually mostly does not come
+				// on audio only mediastruct pollfd pfd[2]
+				// That causes an eternal loop and gst blocked pipeline
+				// the main cause off the sandkeeper at whild up on media change.
+				// The loop now takes max 5 seconds.
+				x++;
+				if (x >= 40)
+					GST_INFO_OBJECT (self, "Pushing eos to basesink x = %d retval = %d", x, retval);
 			}
 		}
 		GST_BASE_SINK_PREROLL_LOCK(sink);
@@ -901,11 +1041,11 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 	case GST_EVENT_SEGMENT:
 	{
 		const GstSegment *segment;
+		gst_event_parse_segment(event, &segment);
 		GstFormat format;
 		gdouble rate;
 		guint64 start, end, pos;
 		gint64 start_dvb;
-		gst_event_parse_segment(event, &segment);
 		format = segment->format;
 		rate = segment->rate;
 		start = segment->start;
@@ -950,7 +1090,7 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		gst_event_parse_caps(event, &caps);
 		if (caps)
 		{
-			GST_DEBUG_OBJECT(self,"CAP %"GST_PTR_FORMAT, caps);
+			GST_INFO_OBJECT(self,"CAP %"GST_PTR_FORMAT, caps);
 		}
 		else
 			ret = FALSE;
@@ -1002,18 +1142,19 @@ static int audio_write(GstDVBAudioSink *self, GstBuffer *buffer, size_t start, s
 			GST_OBJECT_LOCK(self);
 			queue_push(&self->queue, buffer, written, end);
 			GST_OBJECT_UNLOCK(self);
-			GST_DEBUG_OBJECT(self, "pushed %d bytes to queue", len - written);
+			GST_INFO_OBJECT(self, "pushed %d bytes to queue", len - written);
 			break;
 		}
 		else
 		{
-			GST_LOG_OBJECT(self, "going into poll, have %d bytes to write", len - written);
+			GST_TRACE_OBJECT(self, "going into poll, have %d bytes to write", len - written);
 		}
 #if defined(__sh__) && !defined(CHECK_DRAIN)
 		pfd[1].revents = POLLOUT;
 #else
 		if (poll(pfd, 2, -1) < 0)
 		{
+			GST_INFO_OBJECT(self,"poll(pfd, 2, -1) < 0");
 			if (errno == EINTR) continue;
 			retval = -1;
 			break;
@@ -1024,11 +1165,12 @@ static int audio_write(GstDVBAudioSink *self, GstBuffer *buffer, size_t start, s
 			/* read all stop commands */
 			while (1)
 			{
+				GST_INFO_OBJECT(self, "Read all stop commands");
 				gchar command;
 				int res = read(self->unlockfd[0], &command, 1);
 				if (res < 0)
 				{
-					GST_DEBUG_OBJECT(self, "no more commands");
+					GST_INFO_OBJECT(self, "no more commands");
 					/* no more commands */
 					break;
 				}
@@ -1065,12 +1207,12 @@ static int audio_write(GstDVBAudioSink *self, GstBuffer *buffer, size_t start, s
 				else if (wr >= queueend - queuestart)
 				{
 					queue_pop(&self->queue);
-					GST_DEBUG_OBJECT(self, "written %d queue bytes... pop entry", wr);
+					GST_INFO_OBJECT(self, "written %d queue bytes... pop entry", wr);
 				}
 				else
 				{
 					self->queue->start += wr;
-					GST_DEBUG_OBJECT(self, "written %d queue bytes... update offset", wr);
+					GST_INFO_OBJECT(self, "written %d queue bytes... update offset", wr);
 				}
 				GST_OBJECT_UNLOCK(self);
 				continue;
@@ -1174,11 +1316,13 @@ GstFlowReturn gst_dvbaudiosink_push_buffer(GstDVBAudioSink *self, GstBuffer *buf
 
 	if (timestamp != GST_CLOCK_TIME_NONE)
 	{
+		//GST_INFO_OBJECT(self,"timestamp = %" G_GUINT64_FORMAT , (GstClockTime)timestamp);
 		pes_header[7] = 0x80; /* pts */
 		pes_header[8] = 5; /* pts size */
 		pes_header_len += 5;
 		pes_set_pts(timestamp, pes_header);
 	}
+
 
 	if (self->aac_adts_header_valid)
 	{
@@ -1451,7 +1595,7 @@ static gboolean gst_dvbaudiosink_stop(GstBaseSink * basesink)
 {
 	GstDVBAudioSink *self = GST_DVBAUDIOSINK(basesink);
 
-	GST_DEBUG_OBJECT(self, "stop");
+	GST_INFO_OBJECT(self, "stop");
 
 	if (self->fd >= 0)
 	{
@@ -1477,40 +1621,46 @@ static gboolean gst_dvbaudiosink_stop(GstBaseSink * basesink)
 		self->fd = -1;
 	}
 
+	GST_INFO_OBJECT(self, "stop if self->codec_data");
 	if (self->codec_data)
 	{
 		gst_buffer_unref(self->codec_data);
 		self->codec_data = NULL;
 	}
 
+	GST_INFO_OBJECT(self, "stop if self->pesheader_buffer");
 	if (self->pesheader_buffer)
 	{
 		gst_buffer_unref(self->pesheader_buffer);
 		self->pesheader_buffer = NULL;
 	}
-
+	GST_INFO_OBJECT(self, "stop if self->cache");
 	if (self->cache)
 	{
 		gst_buffer_unref(self->cache);
 		self->cache = NULL;
 	}
 
+	GST_INFO_OBJECT(self, "stop if self->queue");
 	while (self->queue)
 	{
 		queue_pop(&self->queue);
 	}
 
+	GST_INFO_OBJECT(self, "stop if self->unlockfd[1] >= 0");
 	/* close write end first */
 	if (self->unlockfd[1] >= 0)
 	{
 		close(self->unlockfd[1]);
 		self->unlockfd[1] = -1;
 	}
+	GST_INFO_OBJECT(self, "stop if self->unlockfd[0] >= 0");
 	if (self->unlockfd[0] >= 0)
 	{
 		close(self->unlockfd[0]);
 		self->unlockfd[0] = -1;
 	}
+	GST_INFO_OBJECT(self, "stop COMPLETED");
 	return TRUE;
 }
 
@@ -1552,6 +1702,21 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		{
 			ioctl(self->fd, AUDIO_SELECT_SOURCE, AUDIO_SOURCE_MEMORY);
 			ioctl(self->fd, AUDIO_PAUSE);
+			/* the driver should(if the driver support that setting) only synchronize if gstreamer runs sync false mode */
+			if(self->synchronized)
+			{
+				if(ioctl(self->fd, AUDIO_SET_AV_SYNC, FALSE) >= 0)
+					GST_INFO_OBJECT(self," AUDIO_SET_AV_SYNC FALSE accepted by driver");
+				else
+					GST_ERROR_OBJECT(self,"AUDIO_SET_AV_SYNC FALSE ***NOT*** accepted by driver critical ioctl error");
+			}
+			else
+			{
+				if(ioctl(self->fd, AUDIO_SET_AV_SYNC, TRUE) >= 0)
+					GST_INFO_OBJECT(self," AUDIO_SET_AV_SYNC TRUE accepted by driver");
+				else
+					GST_ERROR_OBJECT(self,"AUDIO_SET_AV_SYNC TRUE ***NOT*** accepted by driver critical ioctl error");
+			}
 		}
 // dreambox driver issue patch
 #ifdef DREAMBOX
@@ -1564,10 +1729,17 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		if(self->using_dts_downmix && self->first_paused)
 		{
 			gst_sleepms(1800);
-			self->first_paused = FALSE;
+			//self->first_paused = FALSE;
 			GST_INFO_OBJECT(self, "USING DTSDOWMIX DELAY START 1800 ms");
 		}
-		if (self->fd >= 0) ioctl(self->fd, AUDIO_CONTINUE);
+		if(self->first_paused && self->fd >= 0)
+		{
+			self->playing = TRUE;
+			ioctl(self->fd, AUDIO_PLAY);
+			self->first_paused = FALSE;
+		}
+		else if (self->fd >= 0)
+			ioctl(self->fd, AUDIO_CONTINUE);
 		self->paused = FALSE;
 		break;
 	default:

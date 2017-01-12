@@ -283,6 +283,9 @@ if test `echo "$machine" | cut -b 1-2` == "vu"; then
 	AC_DEFINE([VUPLUS],[1],[build for VUPLUS ])
 	AC_DEFINE([TYPE2],[1],[build bybass TYPE2])
 fi
+if test `echo "$machine" | cut -b 1-4` == "gb73"; then
+	AC_DEFINE([GIGABLUEMIPS],[1],[build for GIGABLUEMIPS ])
+fi
 if [ test "$machine" = "xc7362" || test "$machine" = "xc7346" ]; then
 	AC_DEFINE([TYPE2],[1],[build bybass TYPE2])
 fi

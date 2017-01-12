@@ -33,7 +33,8 @@ void pes_set_payload_size(size_t size, unsigned char *pes_header);
 
 void gst_sleepms(uint32_t msec);
 void gst_sleepus(uint32_t usec);
-gboolean get_downmix_setting();
+gboolean get_dts_downmix_setting();
+gboolean get_ac3_downmix_setting();
 gboolean get_downmix_ready();
-
+gboolean is_video_ready();
 #endif
