@@ -352,12 +352,12 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 #endif
 	if (!strcmp(machine, "hd51") || !strcmp(machine, "gb7356"))
 	{
-		gst_base_sink_set_sync(GST_BASE_SINK(self), TRUE);
+		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
 		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
 	}
 	else
 	{
-		gst_base_sink_set_sync(GST_BASE_SINK(self), TRUE);
+		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
 		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
 	}
 
