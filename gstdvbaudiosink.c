@@ -479,17 +479,16 @@ static void gst_dvbaudiosink_get_property (GObject * object, guint prop_id, GVal
 static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
 {
 	gint64 cur = 0;
-	if (self->fd < 0 || !self->pts_written)
+	if (self->fd < 0 || !self->playing || !self->pts_written)
 		return GST_CLOCK_TIME_NONE;
 
-	if(!self->playing && self->lastpts > 0)
+	/*if(!self->playing && self->lastpts > 0)
 	{
 		cur = self->lastpts;
 		cur *= 11111;
 		cur -= self->timestamp_offset;
 		return cur;
-		return GST_CLOCK_TIME_NONE;
-	}
+	}*/
 
 	ioctl(self->fd, AUDIO_GET_PTS, &cur);
 	if (cur)
