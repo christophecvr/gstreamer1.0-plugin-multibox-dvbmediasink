@@ -383,7 +383,7 @@ static void gst_dvbvideosink_init(GstDVBVideoSink *self)
 	if (!strcmp(machine, "hd51") || !strcmp(machine, "gb7356"))
 	{
 		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
-		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), TRUE);
+		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
 	}
 	else
 	{
@@ -442,6 +442,7 @@ static void gst_dvbvideosink_set_property (GObject * object, guint prop_id, cons
 				GST_INFO_OBJECT(self, "SET gstreamer sync to FALSE OK");
 				self->synchronized = FALSE;
 			}
+			//GST_INFO_OBJECT(self, "ignoring attempt to change 'sync' to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
 			break;
 		case PROP_ASYNC:
 			gst_base_sink_set_async_enabled(GST_BASE_SINK(object), g_value_get_boolean(value));
@@ -456,7 +457,7 @@ static void gst_dvbvideosink_set_property (GObject * object, guint prop_id, cons
 				GST_INFO_OBJECT(self, "SET gstreamer async to FALSE OK");
 				self->synchronized = FALSE;
 			}
-			GST_INFO_OBJECT(self, "ignoring attempt to change 'async' to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			//GST_INFO_OBJECT(self, "ignoring attempt to change 'async' to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
 			break;
 		case PROP_RENDER_DELAY:
 			gst_base_sink_set_render_delay(GST_BASE_SINK(object), g_value_get_uint64(value));
@@ -501,15 +502,6 @@ static gint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
 	gint64 cur = 0;
 	if (self->fd < 0 || !self->playing || !self->pts_written)
 		return GST_CLOCK_TIME_NONE;
-
-	/*if(!self->playing && self->lastpts > 0)
-	{
-		cur = self->lastpts;
-		cur *= 11111;
-		cur -= self->timestamp_offset;
-		return cur;
-		//return GST_CLOCK_TIME_NONE;
-	}*/
 
 	ioctl(self->fd, VIDEO_GET_PTS, &cur);
 	if (cur)
@@ -1651,7 +1643,7 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 				fclose(f);
 			}
 		}
-		if (was_playing && self->stream_type != prev_stream_type)
+		if (self->playing && self->stream_type != prev_stream_type)
 		{
 			if (self->fd >= 0)
 				ioctl(self->fd, VIDEO_STOP, 0);
@@ -1771,17 +1763,12 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 #endif
 				}
 			}
-			if (was_playing)
+			if (!self->playing)
 			{
 				ioctl(self->fd, VIDEO_PLAY);
-				self->playing = TRUE;
-				GST_INFO_OBJECT(self, "VIDEO PLAY RE-STARTED ON streamtype 0x%02x mimetype %s", self->stream_type, mimetype);
 			}
 		}
-		if(!was_playing)
-		{
-			GST_INFO_OBJECT(self, "VIDEO READY TO PLAY ON streamtype 0x%02x mimetype %s", self->stream_type, mimetype);
-		}
+		self->playing = TRUE;
 	}
 	else
 	{
@@ -1980,15 +1967,9 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 			self->using_dts_downmix = TRUE;
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
-		if (self->fd >= 0 && self->first_paused)
-		{
-			self->playing = TRUE;
-			ioctl(self->fd, VIDEO_PLAY);
-		}
-		if (self->fd >= 0 && self->paused) 
+		//GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
+		if (self->fd >= 0)
 			ioctl(self->fd, VIDEO_CONTINUE);
-		self->first_paused = FALSE;
 		self->paused = FALSE;
 		break;
 	default:
@@ -2000,7 +1981,7 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 	switch (transition)
 	{
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PLAYING_TO_PAUSED");
+		//GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PLAYING_TO_PAUSED");
 		self->paused = TRUE;
 		if (self->fd >= 0) ioctl(self->fd, VIDEO_FREEZE);
 		/* wakeup the poll */
