@@ -1801,7 +1801,7 @@ static gboolean plugin_init(GstPlugin *plugin)
 {
 	gst_debug_set_colored(GST_DEBUG_COLOR_MODE_OFF);
 	if (!gst_element_register(plugin, "dvbaudiosink",
-						 GST_RANK_PRIMARY,
+						 GST_RANK_PRIMARY + 1,
 						 GST_TYPE_DVBAUDIOSINK))
 	return FALSE;
 
