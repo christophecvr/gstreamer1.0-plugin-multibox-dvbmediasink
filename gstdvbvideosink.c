@@ -432,30 +432,30 @@ static void gst_dvbvideosink_set_property (GObject * object, guint prop_id, cons
 		 * exception on this are the old dreamboxes and vuplus boxes and maybe some other ol ones */
 		case PROP_SYNC:
 			gst_base_sink_set_sync(GST_BASE_SINK(object), g_value_get_boolean(value));
-			GST_INFO_OBJECT(self, "CHANGE sync setting to sync = %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			GST_INFO_OBJECT(self, "CHANGE sync setting to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
 			if (gst_base_sink_get_sync(GST_BASE_SINK(object)))
 			{
-				GST_INFO_OBJECT(self, "SET gstreamer sync TO TRUE ok");
+				GST_INFO_OBJECT(self, "Gstreamer sync succesfully set to TRUE");
 				self->synchronized = TRUE;
 			}
 			else
 			{
-				GST_INFO_OBJECT(self, "SET gstreamer sync to FALSE OK");
+				GST_INFO_OBJECT(self, "Gstreamer sync succesfully set to FALSE");
 				self->synchronized = FALSE;
 			}
 			//GST_INFO_OBJECT(self, "ignoring attempt to change 'sync' to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
 			break;
 		case PROP_ASYNC:
 			gst_base_sink_set_async_enabled(GST_BASE_SINK(object), g_value_get_boolean(value));
-			GST_INFO_OBJECT(self, "CHANGE async setting to sync = %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			GST_INFO_OBJECT(self, "CHANGE async setting to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
 			if (gst_base_sink_is_async_enabled(GST_BASE_SINK(object)))
 			{
-				GST_INFO_OBJECT(self, "SET gstreamer async TO TRUE ok");
+				GST_INFO_OBJECT(self, "Gstreamer async succesfully set to TRUE");
 				self->synchronized = TRUE;
 			}
 			else
 			{
-				GST_INFO_OBJECT(self, "SET gstreamer async to FALSE OK");
+				GST_INFO_OBJECT(self, "Gstreamer async succesfully set to FALSE");
 				self->synchronized = FALSE;
 			}
 			//GST_INFO_OBJECT(self, "ignoring attempt to change 'async' to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
