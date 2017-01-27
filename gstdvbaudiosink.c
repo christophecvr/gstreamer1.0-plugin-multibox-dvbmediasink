@@ -350,6 +350,9 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 #else
 	self->use_set_encoding = FALSE;
 #endif
+	// this machine selection is there for now it is just for me now
+	// during test and dev fase.
+	// The goal is to do machine depended difs from out of e2 players in future.
 	if (!strcmp(machine, "hd51") || !strcmp(machine, "gb7356"))
 	{
 		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
@@ -360,7 +363,7 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
 		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
 	}
-
+	// this debug is there for now will be removed later on
 	if (gst_base_sink_get_sync(GST_BASE_SINK(self)))
 	{
 		GST_INFO_OBJECT(self, "sync = TRUE");
@@ -994,6 +997,8 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 			else if ((pfd[1].revents & POLLIN) == POLLIN)
 			{
 				GST_INFO_OBJECT(self, "got buffer empty from driver!");
+				/* drivers improved a little fast now with empty buffer adding extra half second wait time */
+				gst_sleepms(500);
 				break;
 			}
 			else if ((pfd[1].revents & POLLPRI) == POLLPRI)
@@ -1577,6 +1582,7 @@ error:
 
 static gboolean gst_dvbaudiosink_stop(GstBaseSink * basesink)
 {
+	/* stop will reset the sink like in init fase init fase */
 	GstDVBAudioSink *self = GST_DVBAUDIOSINK(basesink);
 
 	GST_INFO_OBJECT(self, "stop");
@@ -1584,10 +1590,7 @@ static gboolean gst_dvbaudiosink_stop(GstBaseSink * basesink)
 	if (self->fd >= 0)
 	{
 		if (self->playing)
-		{
 			ioctl(self->fd, AUDIO_STOP);
-			self->playing = FALSE;
-		}
 		ioctl(self->fd, AUDIO_SELECT_SOURCE, AUDIO_SOURCE_DEMUX);
 
 		if (self->rate != 1.0)
@@ -1602,30 +1605,13 @@ static gboolean gst_dvbaudiosink_stop(GstBaseSink * basesink)
 			self->rate = 1.0;
 		}
 		close(self->fd);
-		self->fd = -1;
 	}
-
-	GST_INFO_OBJECT(self, "stop if self->codec_data");
 	if (self->codec_data)
-	{
 		gst_buffer_unref(self->codec_data);
-		self->codec_data = NULL;
-	}
-
-	GST_INFO_OBJECT(self, "stop if self->pesheader_buffer");
 	if (self->pesheader_buffer)
-	{
 		gst_buffer_unref(self->pesheader_buffer);
-		self->pesheader_buffer = NULL;
-	}
-	GST_INFO_OBJECT(self, "stop if self->cache");
 	if (self->cache)
-	{
 		gst_buffer_unref(self->cache);
-		self->cache = NULL;
-	}
-
-	GST_INFO_OBJECT(self, "stop if self->queue");
 	while (self->queue)
 	{
 		queue_pop(&self->queue);
@@ -1644,6 +1630,56 @@ static gboolean gst_dvbaudiosink_stop(GstBaseSink * basesink)
 		close(self->unlockfd[0]);
 		self->unlockfd[0] = -1;
 	}
+	self->codec_data = NULL;
+	self->bypass = AUDIOTYPE_UNKNOWN;
+	self->fixed_buffersize = 0;
+	self->fixed_bufferduration = GST_CLOCK_TIME_NONE;
+	self->fixed_buffertimestamp = GST_CLOCK_TIME_NONE;
+	self->aac_adts_header_valid = self->pass_eos = FALSE;
+	self->pesheader_buffer = NULL;
+	self->cache = NULL;
+	self->playing = self->flushing = self->unlocking = self->paused = self->first_paused = FALSE;
+	self->pts_written = self->using_dts_downmix = self->synchronized = self->dts_cd = FALSE;
+	self->lastpts = 0;
+	self->timestamp_offset = 0;
+	self->queue = NULL;
+	self->fd = -1;
+	self->unlockfd[0] = self->unlockfd[1] = -1;
+	self->rate = 1.0;
+	self->timestamp = GST_CLOCK_TIME_NONE;
+#ifdef AUDIO_SET_ENCODING
+	self->use_set_encoding = TRUE;
+#else
+	self->use_set_encoding = FALSE;
+#endif
+	// this machine selection is just for me now
+	// during test and dev fase.
+	// The goal is to do machine depended difs from out of e2 players in future.
+	if (!strcmp(machine, "hd51") || !strcmp(machine, "gb7356"))
+	{
+		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
+		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
+	}
+	else
+	{
+		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
+		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
+	}
+	// this debug is there for now will be removed later on
+	if (gst_base_sink_get_sync(GST_BASE_SINK(self)))
+	{
+		GST_INFO_OBJECT(self, "sync = TRUE");
+		self->synchronized = TRUE;
+	}
+	else
+	{
+		GST_INFO_OBJECT(self, "sync = FALSE");
+		self->synchronized = FALSE;
+	}
+	if (gst_base_sink_is_async_enabled(GST_BASE_SINK(self)))
+		GST_INFO_OBJECT(self, "async = TRUE");
+	else
+		GST_INFO_OBJECT(self, "async = FALSE");
 	GST_INFO_OBJECT(self, "stop COMPLETED");
 	return TRUE;
 }
@@ -1709,7 +1745,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 #endif
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-		//GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
+		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 #ifdef DREAMBOX
 		if(self->using_dts_downmix && self->first_paused)
 		{
@@ -1719,7 +1755,10 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		}
 #endif
 		if (self->fd >= 0)
+		{
 			ioctl(self->fd, AUDIO_CONTINUE);
+		}
+		self->first_paused = FALSE;
 		self->paused = FALSE;
 		break;
 	default:
@@ -1731,7 +1770,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 	switch(transition)
 	{
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-		//GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PLAYING_TO_PAUSED");
+		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_PLAYING_TO_PAUSED");
 		self->paused = TRUE;
 		if (self->fd >= 0)
 			ioctl(self->fd, AUDIO_PAUSE);
@@ -1762,7 +1801,7 @@ static gboolean plugin_init(GstPlugin *plugin)
 {
 	gst_debug_set_colored(GST_DEBUG_COLOR_MODE_OFF);
 	if (!gst_element_register(plugin, "dvbaudiosink",
-						 GST_RANK_PRIMARY + 1,
+						 GST_RANK_PRIMARY,
 						 GST_TYPE_DVBAUDIOSINK))
 	return FALSE;
 

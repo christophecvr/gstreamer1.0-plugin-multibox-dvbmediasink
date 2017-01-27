@@ -67,7 +67,22 @@ typedef struct _GstDVBVideoSink		GstDVBVideoSink;
 typedef struct _GstDVBVideoSinkClass	GstDVBVideoSinkClass;
 typedef struct _GstDVBVideoSinkPrivate	GstDVBVideoSinkPrivate;
 
-typedef enum { CT_MPEG1, CT_MPEG2, CT_H264, CT_DIVX311, CT_DIVX4, CT_MPEG4_PART2, CT_VC1, CT_VC1_SM, CT_H265, CT_SPARK, CT_VP6, CT_VP8, CT_VP9} t_codec_type;
+typedef enum {
+	CT_UNKNOWN = -1,
+	CT_MPEG1 = 0,
+	CT_MPEG2 = 1,
+	CT_H264 = 2,
+	CT_DIVX311 = 3,
+	CT_DIVX4 = 4,
+	CT_MPEG4_PART2 = 5, 
+	CT_VC1 = 6,
+	CT_VC1_SM = 7,
+	CT_H265 = 8,
+	CT_SPARK = 9,
+	CT_VP6 = 10,
+	CT_VP8 = 11,
+	CT_VP9 = 12
+} t_codec_type;
 #if defined(DREAMBOX)
 typedef enum {
 	STREAMTYPE_UNKNOWN = -1,
