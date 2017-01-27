@@ -541,7 +541,7 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 {
 	GstDVBVideoSink *self = GST_DVBVIDEOSINK (sink);
 	GST_DEBUG_OBJECT (self, "EVENT %s", gst_event_type_get_name(GST_EVENT_TYPE (event)));
-	int ret = TRUE;
+	int ret = TRUE, wait = FALSE;
 
 	switch (GST_EVENT_TYPE (event))
 	{
@@ -606,6 +606,7 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 			else if (pfd[0].revents & POLLIN)
 			{
 				GST_INFO_OBJECT(self, "wait EOS aborted!! media is not ended");
+				wait = TRUE;
 				ret = FALSE;
 				break;
 			}
@@ -622,6 +623,7 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 			else if (sink->flushing)
 			{
 				GST_INFO_OBJECT(self, "wait EOS flushing!!");
+				wait = TRUE;
 				ret = FALSE;
 				break;
 			}
@@ -725,6 +727,9 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 	}
 	if (ret)
 		ret = GST_BASE_SINK_CLASS(parent_class)->event(sink, event);
+	else if (!wait)
+		gst_event_unref(event);
+
 	return ret;
 }
 
