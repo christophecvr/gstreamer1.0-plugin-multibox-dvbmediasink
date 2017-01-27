@@ -979,7 +979,11 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		int x = 0;
 		int retval = 0;
 		GST_BASE_SINK_PREROLL_UNLOCK(sink);
+#ifdef GIGABLUEMIPS
+		while (x < 40)
+#else
 		while (x < 400)
+#endif
 		{
 			retval = poll(pfd, 2, 250);
 			if (retval < 0)
@@ -1021,9 +1025,15 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 				// That causes an eternal loop and gst blocked pipeline
 				// the main cause off the sandkeeper at whild up on media change.
 				// The loop now takes max 100 seconds.
+				/* GIGABLUE MIPS SERIES 10 SECONDS DUE TO DRIVER ERROR MANUFACTURER INFORMED ABOUT THIS ISSUE*/
 				x++;
+#ifdef GIGABLUEMIPS
+				if (x >= 40)
+					GST_INFO_OBJECT (self, "Pushing eos to basesink x = %d retval = %d", x, retval);
+#else
 				if (x >= 400)
 					GST_INFO_OBJECT (self, "Pushing eos to basesink x = %d retval = %d", x, retval);
+#endif
 			}
 		}
 		GST_BASE_SINK_PREROLL_LOCK(sink);
