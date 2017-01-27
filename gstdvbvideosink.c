@@ -379,7 +379,8 @@ static void gst_dvbvideosink_init(GstDVBVideoSink *self)
 #else
 	self->use_set_encoding = FALSE;
 #endif
-
+	// machine selcetion only for test now here
+	// In future the goal is to do this setting out of e2 mediaplayers.
 	if (!strcmp(machine, "hd51") || !strcmp(machine, "gb7356"))
 	{
 		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
@@ -390,7 +391,7 @@ static void gst_dvbvideosink_init(GstDVBVideoSink *self)
 		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
 		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
 	}
-
+	// debug in test fase should be removed later on.
 	if (gst_base_sink_get_sync(GST_BASE_SINK(self)))
 	{
 		GST_INFO_OBJECT(self, "sync = TRUE");
@@ -1882,6 +1883,34 @@ static gboolean gst_dvbvideosink_stop(GstBaseSink *basesink)
 #else
 	self->use_set_encoding = FALSE;
 #endif
+	// machine selection only for test now here
+	// In future the goal is to do this setting out of e2 mediaplayers.
+	if (!strcmp(machine, "hd51") || !strcmp(machine, "gb7356"))
+	{
+		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
+		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
+	}
+	else
+	{
+		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
+		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
+	}
+	// debug in test fase should be removed later on.
+	if (gst_base_sink_get_sync(GST_BASE_SINK(self)))
+	{
+		GST_INFO_OBJECT(self, "sync = TRUE");
+		self->synchronized = TRUE;
+	}
+	else
+	{
+		GST_INFO_OBJECT(self, "sync = FALSE");
+		self->synchronized = FALSE;
+	}
+	if (gst_base_sink_is_async_enabled(GST_BASE_SINK(self)))
+		GST_INFO_OBJECT(self, "async = TRUE");
+	else
+		GST_INFO_OBJECT(self, "async = FALSE");
+	GST_INFO_OBJECT(self, "STOP MEDIA COMPLETED");
 	return TRUE;
 }
 
