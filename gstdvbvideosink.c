@@ -361,7 +361,7 @@ static void gst_dvbvideosink_init(GstDVBVideoSink *self)
 	self->h264_initial_audelim_written = FALSE;
 	self->pesheader_buffer = NULL;
 	self->codec_data = NULL;
-	self->codec_type = CT_H264;
+	self->codec_type = CT_UNKNOWN;
 	self->stream_type = STREAMTYPE_UNKNOWN;
 	self->use_dts = FALSE;
 	self->paused = self->playing = self->unlocking = self->flushing = self->first_paused = FALSE;
@@ -379,7 +379,8 @@ static void gst_dvbvideosink_init(GstDVBVideoSink *self)
 #else
 	self->use_set_encoding = FALSE;
 #endif
-
+	// machine selcetion only for test now here
+	// In future the goal is to do this setting out of e2 mediaplayers.
 	if (!strcmp(machine, "hd51") || !strcmp(machine, "gb7356"))
 	{
 		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
@@ -390,7 +391,7 @@ static void gst_dvbvideosink_init(GstDVBVideoSink *self)
 		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
 		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
 	}
-
+	// debug in test fase should be removed later on.
 	if (gst_base_sink_get_sync(GST_BASE_SINK(self)))
 	{
 		GST_INFO_OBJECT(self, "sync = TRUE");
@@ -431,30 +432,30 @@ static void gst_dvbvideosink_set_property (GObject * object, guint prop_id, cons
 		 * exception on this are the old dreamboxes and vuplus boxes and maybe some other ol ones */
 		case PROP_SYNC:
 			gst_base_sink_set_sync(GST_BASE_SINK(object), g_value_get_boolean(value));
-			GST_INFO_OBJECT(self, "CHANGE sync setting to sync = %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			GST_INFO_OBJECT(self, "CHANGE sync setting to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
 			if (gst_base_sink_get_sync(GST_BASE_SINK(object)))
 			{
-				GST_INFO_OBJECT(self, "SET gstreamer sync TO TRUE ok");
+				GST_INFO_OBJECT(self, "Gstreamer sync succesfully set to TRUE");
 				self->synchronized = TRUE;
 			}
 			else
 			{
-				GST_INFO_OBJECT(self, "SET gstreamer sync to FALSE OK");
+				GST_INFO_OBJECT(self, "Gstreamer sync succesfully set to FALSE");
 				self->synchronized = FALSE;
 			}
 			//GST_INFO_OBJECT(self, "ignoring attempt to change 'sync' to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
 			break;
 		case PROP_ASYNC:
 			gst_base_sink_set_async_enabled(GST_BASE_SINK(object), g_value_get_boolean(value));
-			GST_INFO_OBJECT(self, "CHANGE async setting to sync = %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			GST_INFO_OBJECT(self, "CHANGE async setting to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
 			if (gst_base_sink_is_async_enabled(GST_BASE_SINK(object)))
 			{
-				GST_INFO_OBJECT(self, "SET gstreamer async TO TRUE ok");
+				GST_INFO_OBJECT(self, "Gstreamer async succesfully set to TRUE");
 				self->synchronized = TRUE;
 			}
 			else
 			{
-				GST_INFO_OBJECT(self, "SET gstreamer async to FALSE OK");
+				GST_INFO_OBJECT(self, "Gstreamer async succesfully set to FALSE");
 				self->synchronized = FALSE;
 			}
 			//GST_INFO_OBJECT(self, "ignoring attempt to change 'async' to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
@@ -1826,10 +1827,7 @@ static gboolean gst_dvbvideosink_stop(GstBaseSink *basesink)
 	if (self->fd >= 0)
 	{
 		if (self->playing)
-		{
 			ioctl(self->fd, VIDEO_STOP);
-			self->playing = FALSE;
-		}
 		if (self->rate != 1.0)
 		{
 			ioctl(self->fd, VIDEO_SLOWMOTION, 0);
@@ -1838,21 +1836,12 @@ static gboolean gst_dvbvideosink_stop(GstBaseSink *basesink)
 		}
 		ioctl(self->fd, VIDEO_SELECT_SOURCE, VIDEO_SOURCE_DEMUX);
 		close(self->fd);
-		self->fd = -1;
 	}
 
 	if (self->codec_data)
-	{
 		gst_buffer_unref(self->codec_data);
-		self->codec_data = NULL;
-	}
-
 	if (self->pesheader_buffer)
-	{
 		gst_buffer_unref(self->pesheader_buffer);
-		self->pesheader_buffer = NULL;
-	}
-
 	while (self->queue)
 	{
 		queue_pop(&self->queue);
@@ -1868,15 +1857,60 @@ static gboolean gst_dvbvideosink_stop(GstBaseSink *basesink)
 
 	/* close write end first */
 	if (self->unlockfd[1] >= 0)
-	{
 		close(self->unlockfd[1]);
-		self->unlockfd[1] = -1;
-	}
 	if (self->unlockfd[0] >= 0)
-	{
 		close(self->unlockfd[0]);
-		self->unlockfd[0] = -1;
+	self->must_send_header = TRUE;
+	self->h264_nal_len_size = 0;
+	self->h264_initial_audelim_written = FALSE;
+	self->pesheader_buffer = NULL;
+	self->codec_data = NULL;
+	self->codec_type = CT_UNKNOWN;
+	self->stream_type = STREAMTYPE_UNKNOWN;
+	self->use_dts = FALSE;
+	self->paused = self->playing = self->unlocking = self->flushing = self->first_paused = FALSE;
+	self->pts_written = self->using_dts_downmix = self->synchronized = self->pass_eos = FALSE;
+	self->lastpts = 0;
+	self->timestamp_offset = 0;
+	self->queue = NULL;
+	self->fd = -1;
+	self->unlockfd[0] = self->unlockfd[1] = -1;
+	self->saved_fallback_framerate[0] = 0;
+	self->rate = 1.0;
+	self->wmv_asf = FALSE;
+#ifdef VIDEO_SET_ENCODING
+	self->use_set_encoding = TRUE;
+#else
+	self->use_set_encoding = FALSE;
+#endif
+	// machine selection only for test now here
+	// In future the goal is to do this setting out of e2 mediaplayers.
+	if (!strcmp(machine, "hd51") || !strcmp(machine, "gb7356"))
+	{
+		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
+		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
 	}
+	else
+	{
+		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
+		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
+	}
+	// debug in test fase should be removed later on.
+	if (gst_base_sink_get_sync(GST_BASE_SINK(self)))
+	{
+		GST_INFO_OBJECT(self, "sync = TRUE");
+		self->synchronized = TRUE;
+	}
+	else
+	{
+		GST_INFO_OBJECT(self, "sync = FALSE");
+		self->synchronized = FALSE;
+	}
+	if (gst_base_sink_is_async_enabled(GST_BASE_SINK(self)))
+		GST_INFO_OBJECT(self, "async = TRUE");
+	else
+		GST_INFO_OBJECT(self, "async = FALSE");
+	GST_INFO_OBJECT(self, "STOP MEDIA COMPLETED");
 	return TRUE;
 }
 
@@ -1967,7 +2001,7 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 			self->using_dts_downmix = TRUE;
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-		//GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
+		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 		if (self->fd >= 0)
 			ioctl(self->fd, VIDEO_CONTINUE);
 		self->paused = FALSE;
@@ -1981,7 +2015,7 @@ static GstStateChangeReturn gst_dvbvideosink_change_state(GstElement *element, G
 	switch (transition)
 	{
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-		//GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PLAYING_TO_PAUSED");
+		GST_INFO_OBJECT (self,"GST_STATE_CHANGE_PLAYING_TO_PAUSED");
 		self->paused = TRUE;
 		if (self->fd >= 0) ioctl(self->fd, VIDEO_FREEZE);
 		/* wakeup the poll */
