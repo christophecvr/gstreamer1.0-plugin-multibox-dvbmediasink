@@ -978,12 +978,9 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 
 		int x = 0;
 		int retval = 0;
+		gint64 previous_pts = 0;
 		GST_BASE_SINK_PREROLL_UNLOCK(sink);
-#ifdef GIGABLUEMIPS
-		while (x < 40)
-#else
-		while (x < 400)
-#endif
+		while (x < 600)
 		{
 			retval = poll(pfd, 2, 250);
 			if (retval < 0)
@@ -1020,20 +1017,26 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 			}
 			else
 			{
-				// the buffer empty not always comes actually mostly does not come
-				// on audio only mediastruct pollfd pfd[2]
-				// That causes an eternal loop and gst blocked pipeline
-				// the main cause off the sandkeeper at whild up on media change.
-				// The loop now takes max 100 seconds.
-				/* GIGABLUE MIPS SERIES 10 SECONDS DUE TO DRIVER ERROR MANUFACTURER INFORMED ABOUT THIS ISSUE*/
 				x++;
-#ifdef GIGABLUEMIPS
-				if (x >= 40)
+				if (x >= 600)
 					GST_INFO_OBJECT (self, "Pushing eos to basesink x = %d retval = %d", x, retval);
-#else
-				if (x >= 400)
-					GST_INFO_OBJECT (self, "Pushing eos to basesink x = %d retval = %d", x, retval);
-#endif
+				gint64 current_pts = gst_dvbaudiosink_get_decoder_time(self);
+				if(current_pts > 0)
+				{
+					if(previous_pts == current_pts)
+					{
+						GST_INFO_OBJECT(self,"Media ended push eos to basesink current_pts %" G_GINT64_FORMAT " previous_pts %" G_GINT64_FORMAT,
+							current_pts, previous_pts);
+						break;
+					}
+					else
+					{
+						GST_DEBUG_OBJECT(self,"poll out current_pts %" G_GINT64_FORMAT " previous_pts %" G_GINT64_FORMAT,
+							current_pts, previous_pts);
+						previous_pts = current_pts;
+					}
+				}
+
 			}
 		}
 		GST_BASE_SINK_PREROLL_LOCK(sink);

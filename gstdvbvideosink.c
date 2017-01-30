@@ -593,8 +593,9 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		pfd[1].events = POLLIN;
 		int x = 0;
 		int retval = 0;
+		gint64 previous_pts = 0;
 		GST_BASE_SINK_PREROLL_UNLOCK(sink);
- 		while (x < 400)
+ 		while (x < 600)
 		{
 			retval = poll(pfd, 2, 250);
 			if (retval < 0)
@@ -629,13 +630,25 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 			}
 			else
 			{
-				// the buffer empty not always come.
-				// That causes an eternal loop and gst blocked pipeline
-				// the main cause of the sandkeeper at wild up on media change.
-				// The loop now takes max 100 seconds.
 				x++;
-				if (x >= 400)
+				if (x >= 600)
 					GST_INFO_OBJECT (self, "Pushing eos to basesink x = %d retval = %d", x, retval);
+				gint64 current_pts = gst_dvbvideosink_get_decoder_time(self);
+				if(current_pts > 0)
+				{
+					if(previous_pts == current_pts)
+					{
+						GST_INFO_OBJECT(self,"Media ended push eos to basesink current_pts %" G_GINT64_FORMAT " previous_pts %" G_GINT64_FORMAT,
+							current_pts, previous_pts);
+						break;
+					}
+					else
+					{
+						GST_DEBUG_OBJECT(self,"poll out current_pts %" G_GINT64_FORMAT " previous_pts %" G_GINT64_FORMAT,
+							current_pts, previous_pts);
+						previous_pts = current_pts;
+					}
+				}
 			}
 		}
 		GST_BASE_SINK_PREROLL_LOCK(sink);
