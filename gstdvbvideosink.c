@@ -141,6 +141,8 @@ enum
 	PROP_0,
 	PROP_SYNC,
 	PROP_ASYNC,
+	PROP_SYNC_E2PLAYER,
+	PROP_ASYNC_E2PLAYER,
 	PROP_RENDER_DELAY,
 	PROP_LAST
 };
@@ -323,6 +325,12 @@ static void gst_dvbvideosink_class_init(GstDVBVideoSinkClass *self)
 	g_object_class_install_property (gobject_class, PROP_ASYNC,
 			g_param_spec_boolean ("async", "Async", "preroll", FALSE,
 					G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+	g_object_class_install_property (gobject_class, PROP_SYNC_E2PLAYER,
+			g_param_spec_boolean ("e2-sync", "E2-Sync", "Sync on the clock", FALSE,
+					G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+	g_object_class_install_property (gobject_class, PROP_ASYNC_E2PLAYER,
+			g_param_spec_boolean ("e2-async", "E2-Async", "preroll", FALSE,
+					G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property (gobject_class, PROP_RENDER_DELAY,
 			g_param_spec_uint64 ("render-delay", "Renderdelay", "Render-delay increase latency",
 					0, G_MAXUINT64, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -379,33 +387,8 @@ static void gst_dvbvideosink_init(GstDVBVideoSink *self)
 #else
 	self->use_set_encoding = FALSE;
 #endif
-	// machine selcetion only for test now here
-	// In future the goal is to do this setting out of e2 mediaplayers.
-	if (!strcmp(machine, "hd51") || !strcmp(machine, "gb7356"))
-	{
-		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
-		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
-	}
-	else
-	{
-		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
-		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
-	}
-	// debug in test fase should be removed later on.
-	if (gst_base_sink_get_sync(GST_BASE_SINK(self)))
-	{
-		GST_INFO_OBJECT(self, "sync = TRUE");
-		self->synchronized = TRUE;
-	}
-	else
-	{
-		GST_INFO_OBJECT(self, "sync = FALSE");
-		self->synchronized = FALSE;
-	}
-	if (gst_base_sink_is_async_enabled(GST_BASE_SINK(self)))
-		GST_INFO_OBJECT(self, "async = TRUE");
-	else
-		GST_INFO_OBJECT(self, "async = FALSE");
+	gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
+	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
 }
 
 static void gst_dvbvideosink_dispose(GObject *obj)
@@ -431,38 +414,40 @@ static void gst_dvbvideosink_set_property (GObject * object, guint prop_id, cons
 		 * subject to changes in future Most stb do support sync settings *
 		 * exception on this are the old dreamboxes and vuplus boxes and maybe some other ol ones */
 		case PROP_SYNC:
-			gst_base_sink_set_sync(GST_BASE_SINK(object), g_value_get_boolean(value));
-			GST_INFO_OBJECT(self, "CHANGE sync setting to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
-			if (gst_base_sink_get_sync(GST_BASE_SINK(object)))
-			{
-				GST_INFO_OBJECT(self, "Gstreamer sync succesfully set to TRUE");
-				self->synchronized = TRUE;
-			}
-			else
-			{
-				GST_INFO_OBJECT(self, "Gstreamer sync succesfully set to FALSE");
-				self->synchronized = FALSE;
-			}
-			//GST_INFO_OBJECT(self, "ignoring attempt to change 'sync' to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			GST_INFO_OBJECT(self, "ignoring attempt to change 'sync' to %s by unknown element", g_value_get_boolean(value) ? "TRUE" : "FALSE");
 			break;
 		case PROP_ASYNC:
-			gst_base_sink_set_async_enabled(GST_BASE_SINK(object), g_value_get_boolean(value));
-			GST_INFO_OBJECT(self, "CHANGE async setting to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
-			if (gst_base_sink_is_async_enabled(GST_BASE_SINK(object)))
+			GST_INFO_OBJECT(self, "ignoring attempt to change by 'async' to %s by unknown element", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			break;
+		case PROP_SYNC_E2PLAYER:
+			gst_base_sink_set_sync(GST_BASE_SINK(object), g_value_get_boolean(value));
+			GST_DEBUG_OBJECT(self, "CHANGE sync setting to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			if (gst_base_sink_get_sync(GST_BASE_SINK(object)))
 			{
-				GST_INFO_OBJECT(self, "Gstreamer async succesfully set to TRUE");
+				GST_INFO_OBJECT(self, "Gstreamer sync succesfully set to TRUE by e2Player");
 				self->synchronized = TRUE;
 			}
 			else
 			{
-				GST_INFO_OBJECT(self, "Gstreamer async succesfully set to FALSE");
+				GST_INFO_OBJECT(self, "Gstreamer sync succesfully set to FALSE by e2Player");
 				self->synchronized = FALSE;
 			}
-			//GST_INFO_OBJECT(self, "ignoring attempt to change 'async' to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			break;
+		case PROP_ASYNC_E2PLAYER:
+			gst_base_sink_set_async_enabled(GST_BASE_SINK(object), g_value_get_boolean(value));
+			GST_DEBUG_OBJECT(self, "CHANGE async setting to %s  source ", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			if (gst_base_sink_is_async_enabled(GST_BASE_SINK(object)))
+			{
+				GST_INFO_OBJECT(self, "Gstreamer async succesfully set to TRUE by e2Player");
+			}
+			else
+			{
+				GST_INFO_OBJECT(self, "Gstreamer async succesfully set to FALSE by e2Player");
+			}
 			break;
 		case PROP_RENDER_DELAY:
 			gst_base_sink_set_render_delay(GST_BASE_SINK(object), g_value_get_uint64(value));
-			GST_INFO_OBJECT(self, "Change renderdelay to  = %" G_GUINT64_FORMAT , g_value_get_uint64(value));
+			GST_DEBUG_OBJECT(self, "Change renderdelay to  = %" G_GUINT64_FORMAT , g_value_get_uint64(value));
 			if (gst_base_sink_get_render_delay(GST_BASE_SINK(object)) == g_value_get_uint64(value))
 				GST_INFO_OBJECT(self, "Renderdelay changed to  %" G_GUINT64_FORMAT , g_value_get_uint64(value));
 			else
@@ -1901,33 +1886,8 @@ static gboolean gst_dvbvideosink_stop(GstBaseSink *basesink)
 #else
 	self->use_set_encoding = FALSE;
 #endif
-	// machine selection only for test now here
-	// In future the goal is to do this setting out of e2 mediaplayers.
-	if (!strcmp(machine, "hd51") || !strcmp(machine, "gb7356"))
-	{
-		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
-		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
-	}
-	else
-	{
-		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
-		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
-	}
-	// debug in test fase should be removed later on.
-	if (gst_base_sink_get_sync(GST_BASE_SINK(self)))
-	{
-		GST_INFO_OBJECT(self, "sync = TRUE");
-		self->synchronized = TRUE;
-	}
-	else
-	{
-		GST_INFO_OBJECT(self, "sync = FALSE");
-		self->synchronized = FALSE;
-	}
-	if (gst_base_sink_is_async_enabled(GST_BASE_SINK(self)))
-		GST_INFO_OBJECT(self, "async = TRUE");
-	else
-		GST_INFO_OBJECT(self, "async = FALSE");
+	gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
+	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
 	GST_INFO_OBJECT(self, "STOP MEDIA COMPLETED");
 	return TRUE;
 }
