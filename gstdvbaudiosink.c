@@ -85,6 +85,8 @@ enum
 	PROP_0,
 	PROP_SYNC,
 	PROP_ASYNC,
+	PROP_SYNC_E2PLAYER,
+	PROP_ASYNC_E2PLAYER,
 	PROP_RENDER_DELAY,
 	PROP_LAST
 };
@@ -296,6 +298,12 @@ static void gst_dvbaudiosink_class_init(GstDVBAudioSinkClass *self)
 	g_object_class_install_property (gobject_class, PROP_ASYNC,
 			g_param_spec_boolean ("async", "Async", "preroll", FALSE,
 					G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+	g_object_class_install_property (gobject_class, PROP_SYNC_E2PLAYER,
+			g_param_spec_boolean ("e2-sync", "E2-Sync", "Sync on the clock", FALSE,
+					G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+	g_object_class_install_property (gobject_class, PROP_ASYNC_E2PLAYER,
+			g_param_spec_boolean ("e2-async", "E2-Async", "preroll", FALSE,
+					G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 	g_object_class_install_property (gobject_class, PROP_RENDER_DELAY,
 			g_param_spec_uint64 ("render-delay", "Renderdelay", "Render-delay increase latency",
 				0, G_MAXUINT64, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -353,31 +361,9 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 	// this machine selection is there for now it is just for me now
 	// during test and dev fase.
 	// The goal is to do machine depended difs from out of e2 players in future.
-	if (!strcmp(machine, "hd51") || !strcmp(machine, "gb7356"))
-	{
-		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
-		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
-	}
-	else
-	{
-		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
-		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
-	}
-	// this debug is there for now will be removed later on
-	if (gst_base_sink_get_sync(GST_BASE_SINK(self)))
-	{
-		GST_INFO_OBJECT(self, "sync = TRUE");
-		self->synchronized = TRUE;
-	}
-	else
-	{
-		GST_INFO_OBJECT(self, "sync = FALSE");
-		self->synchronized = FALSE;
-	}
-	if (gst_base_sink_is_async_enabled(GST_BASE_SINK(self)))
-		GST_INFO_OBJECT(self, "async = TRUE");
-	else
-		GST_INFO_OBJECT(self, "async = FALSE");
+	gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
+	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
+
 }
 
 static void gst_dvbaudiosink_dispose(GObject *obj)
@@ -403,43 +389,41 @@ static void gst_dvbaudiosink_set_property (GObject * object, guint prop_id, cons
 		 * subject to changes in future Most stb do support sync settings *
 		 * exception on this are the old dreamboxes and vuplus boxes and maybe some other ol ones */
 		case PROP_SYNC:
-			gst_base_sink_set_sync(GST_BASE_SINK(object), g_value_get_boolean(value));
-			GST_INFO_OBJECT(self, "CHANGE sync setting to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
-			if (gst_base_sink_get_sync(GST_BASE_SINK(object)))
-			{
-				GST_INFO_OBJECT(self, "Gstreamer sync succesfully set to TRUE");
-				// the driver should(if the driver support that setting) only synchronize if gstreamer runs sync false mode 
-				/*if(ioctl(self->fd, AUDIO_SET_AV_SYNC, FALSE) >= 0)
-					GST_INFO_OBJECT(self," AUDIO_SET_AV_SYNC FALSE accepted by driver");
-				else if (self->fd >= 0)
-					GST_ERROR_OBJECT(self,"AUDIO_SET_AV_SYNC FALSE ***NOT*** accepted by driver critical ioctl error");*/
-				self->synchronized = TRUE;
-			}
-			else
-			{
-				GST_INFO_OBJECT(self, "Gstreamer sync succesfully set to FALSE");
-				/*if(ioctl(self->fd, AUDIO_SET_AV_SYNC, TRUE) >= 0)
-					GST_INFO_OBJECT(self," AUDIO_SET_AV_SYNC TRUE accepted by driver");
-				else if (self->fd >= 0)
-					GST_ERROR_OBJECT(self,"AUDIO_SET_AV_SYNC TRUE ***NOT*** accepted by driver critical ioctl error");*/
-				self->synchronized = FALSE;
-			}
-			//GST_INFO_OBJECT(self, "ignoring attempt to change 'sync' to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			GST_INFO_OBJECT(self, "ignoring attempt to change 'sync' to %s by unknown element", g_value_get_boolean(value) ? "TRUE" : "FALSE");
 			break;
 		case PROP_ASYNC:
-			gst_base_sink_set_async_enabled(GST_BASE_SINK(object), g_value_get_boolean(value));
-			GST_INFO_OBJECT(self, "CHANGE async setting to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
-			if (gst_base_sink_is_async_enabled(GST_BASE_SINK(object)))
+			GST_INFO_OBJECT(self, "ignoring attempt to change by 'async' to %s by unknown element", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			break;
+		case PROP_SYNC_E2PLAYER:
+			gst_base_sink_set_sync(GST_BASE_SINK(object), g_value_get_boolean(value));
+			GST_DEBUG_OBJECT(self, "CHANGE sync setting to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			if (gst_base_sink_get_sync(GST_BASE_SINK(object)))
 			{
-				GST_INFO_OBJECT(self, "Gstreamer async succesfully set to TRUE");
+				GST_INFO_OBJECT(self, "Gstreamer sync succesfully set to TRUE by e2Player");
+				// the driver should(if the driver support that setting) only synchronize if gstreamer runs sync false mode 
+				if(ioctl(self->fd, AUDIO_SET_AV_SYNC, FALSE) >= 0)
+					GST_INFO_OBJECT(self," AUDIO_SET_AV_SYNC FALSE accepted by driver");
 				self->synchronized = TRUE;
 			}
 			else
 			{
-				GST_INFO_OBJECT(self, "Gstreamer async succesfully set to FALSE");
+				GST_INFO_OBJECT(self, "Gstreamer sync succesfully set to FALSE by e2Player");
+				if(ioctl(self->fd, AUDIO_SET_AV_SYNC, TRUE) >= 0)
+					GST_INFO_OBJECT(self," AUDIO_SET_AV_SYNC TRUE accepted by driver");
 				self->synchronized = FALSE;
 			}
-			//GST_INFO_OBJECT(self, "ignoring attempt to change 'async' to %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			break;
+		case PROP_ASYNC_E2PLAYER:
+			gst_base_sink_set_async_enabled(GST_BASE_SINK(object), g_value_get_boolean(value));
+			GST_DEBUG_OBJECT(self, "CHANGE async setting to %s  source ", g_value_get_boolean(value) ? "TRUE" : "FALSE");
+			if (gst_base_sink_is_async_enabled(GST_BASE_SINK(object)))
+			{
+				GST_INFO_OBJECT(self, "Gstreamer async succesfully set to TRUE by e2Player");
+			}
+			else
+			{
+				GST_INFO_OBJECT(self, "Gstreamer async succesfully set to FALSE by e2Player");
+			}
 			break;
 		case PROP_RENDER_DELAY:
 			gst_base_sink_set_render_delay(GST_BASE_SINK(object), g_value_get_uint64(value));
@@ -1667,35 +1651,9 @@ static gboolean gst_dvbaudiosink_stop(GstBaseSink * basesink)
 #else
 	self->use_set_encoding = FALSE;
 #endif
-	// this machine selection is just for me now
-	// during test and dev fase.
-	// The goal is to do machine depended difs from out of e2 players in future.
-	if (!strcmp(machine, "hd51") || !strcmp(machine, "gb7356"))
-	{
-		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
-		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
-	}
-	else
-	{
-		gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
-		gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
-	}
-	// this debug is there for now will be removed later on
-	if (gst_base_sink_get_sync(GST_BASE_SINK(self)))
-	{
-		GST_INFO_OBJECT(self, "sync = TRUE");
-		self->synchronized = TRUE;
-	}
-	else
-	{
-		GST_INFO_OBJECT(self, "sync = FALSE");
-		self->synchronized = FALSE;
-	}
-	if (gst_base_sink_is_async_enabled(GST_BASE_SINK(self)))
-		GST_INFO_OBJECT(self, "async = TRUE");
-	else
-		GST_INFO_OBJECT(self, "async = FALSE");
-	GST_INFO_OBJECT(self, "stop COMPLETED");
+	gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
+	gst_base_sink_set_async_enabled(GST_BASE_SINK(self), FALSE);
+	GST_INFO_OBJECT(self, "STOP MEDIA COMPLETED");
 	return TRUE;
 }
 
