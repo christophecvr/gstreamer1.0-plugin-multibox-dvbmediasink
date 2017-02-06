@@ -124,6 +124,7 @@ struct _GstDVBAudioSink
 	int fixed_buffersize;
 	GstClockTime fixed_buffertimestamp;
 	GstClockTime fixed_bufferduration;
+	const gchar *audio_stream_type;
 
 	GstClockTime timestamp;
 	gdouble rate;

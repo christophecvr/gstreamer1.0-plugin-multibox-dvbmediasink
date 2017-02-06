@@ -601,11 +601,6 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 				GST_INFO_OBJECT(self, "got buffer empty from driver!");
 				break;
 			}
-			else if (pfd[1].revents & POLLPRI)
-			{
-				GST_INFO_OBJECT(self, "got buffer HIPRI empty from driver!");
-				break;
-			}
 			else if (sink->flushing)
 			{
 				GST_INFO_OBJECT(self, "wait EOS flushing!!");
@@ -1650,7 +1645,11 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 		if (self->playing && self->stream_type != prev_stream_type)
 		{
 			if (self->fd >= 0)
+			{
 				ioctl(self->fd, VIDEO_STOP, 0);
+				if(ioctl(self->fd, VIDEO_CLEAR_BUFFER) >= 0)
+					GST_INFO_OBJECT(self, "new streamtype VIDEO BUFFER FLUSHED");
+			}
 			self->playing = FALSE;
 		}
 #ifdef VIDEO_SET_ENCODING
@@ -1838,6 +1837,8 @@ static gboolean gst_dvbvideosink_stop(GstBaseSink *basesink)
 			self->rate = 1.0;
 		}
 		ioctl(self->fd, VIDEO_SELECT_SOURCE, VIDEO_SOURCE_DEMUX);
+		if(ioctl(self->fd, VIDEO_CLEAR_BUFFER) >= 0)
+			GST_INFO_OBJECT(self, "STOP VIDEO BUFFER FLUSHED");
 		close(self->fd);
 	}
 
