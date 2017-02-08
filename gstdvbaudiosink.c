@@ -1053,30 +1053,7 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
  		if (format == GST_FORMAT_TIME)
 		{
 			self->timestamp_offset = start - pos;
-
-			if (rate != self->rate)
-			{
-				int video_fd = open("/dev/dvb/adapter0/video0", O_RDWR);
-				if (video_fd >= 0)
-				{
-					GST_INFO_OBJECT(self, "GST_EVENT_SEGMENT IS VIDEO0 OPEN ?");
-					int skip = 0, repeat = 0;
-					if (rate > 1.0)
-					{
-						skip = (int)rate;
-					}
-					else if (rate < 1.0)
-					{
-						repeat = 1.0 / rate;
-					}
-					ioctl(video_fd, VIDEO_SLOWMOTION, repeat);
-					ioctl(video_fd, VIDEO_FAST_FORWARD, skip);
-					ioctl(video_fd, VIDEO_CONTINUE);
-					close(video_fd);
-					video_fd = -1;
-				}
-				self->rate = rate;
-			}
+			self->rate = rate;
 		}
 		break;
 	}
