@@ -579,10 +579,14 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		int x = 0;
 		int retval = 0;
 		gint64 previous_pts = 0;
+		gboolean first_loop_done = FALSE;
 		GST_BASE_SINK_PREROLL_UNLOCK(sink);
- 		while (x < 600)
+ 		while (1)
 		{
-			retval = poll(pfd, 2, 250);
+			if (first_loop_done)
+				retval = poll(pfd, 2, 250);
+			else
+				retval = poll(pfd, 2, 1000);
 			if (retval < 0)
 			{
 				GST_INFO_OBJECT(self,"poll in EVENT_EOS");
@@ -598,8 +602,16 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 			}
 			else if (pfd[1].revents & POLLIN)
 			{
-				GST_INFO_OBJECT(self, "got buffer empty from driver!");
-				break;
+				/* video must first wait up on right playposition before sending eos by driver or position 
+				 * on fast boxes like the 4 K's the eos is send by short media (below buffer video-mem buffer lenght) to early
+				 * The video did not had the time to start playing then we poll with 1 second instead off 250 ms
+				 * If the media is long enough which means media lenght bigger then drivers video-mem this issue does not occur
+				*/
+				if (first_loop_done)
+				{
+					GST_INFO_OBJECT(self, "got buffer empty from driver!");
+					break;
+				}
 			}
 			else if (sink->flushing)
 			{
@@ -610,9 +622,6 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 			}
 			else
 			{
-				x++;
-				if (x >= 600)
-					GST_INFO_OBJECT (self, "Pushing eos to basesink x = %d retval = %d", x, retval);
 				gint64 current_pts = gst_dvbvideosink_get_decoder_time(self);
 				if(current_pts > 0)
 				{
@@ -624,10 +633,12 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 					}
 					else
 					{
+						first_loop_done = TRUE;
 						GST_DEBUG_OBJECT(self,"poll out current_pts %" G_GINT64_FORMAT " previous_pts %" G_GINT64_FORMAT,
 							current_pts, previous_pts);
 						previous_pts = current_pts;
 					}
+					//first_loop_done = TRUE;
 				}
 			}
 		}
@@ -1647,8 +1658,8 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 			if (self->fd >= 0)
 			{
 				ioctl(self->fd, VIDEO_STOP, 0);
-				if(ioctl(self->fd, VIDEO_CLEAR_BUFFER) >= 0)
-					GST_INFO_OBJECT(self, "new streamtype VIDEO BUFFER FLUSHED");
+				//if(ioctl(self->fd, VIDEO_CLEAR_BUFFER) >= 0)
+					//GST_INFO_OBJECT(self, "new streamtype VIDEO BUFFER FLUSHED");
 			}
 			self->playing = FALSE;
 		}

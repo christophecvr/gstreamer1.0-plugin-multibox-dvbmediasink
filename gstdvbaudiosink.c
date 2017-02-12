@@ -979,7 +979,7 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		int retval = 0;
 		gint64 previous_pts = 0;
 		GST_BASE_SINK_PREROLL_UNLOCK(sink);
-		while (x < 600)
+		while (1)
 		{
 			retval = poll(pfd, 2, 250);
 			if (retval < 0)
@@ -997,8 +997,8 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 			}
 			else if ((pfd[1].revents & POLLIN) == POLLIN)
 			{
-				GST_INFO_OBJECT(self, "got buffer empty from driver!");
-				break;
+					GST_INFO_OBJECT(self, "got buffer empty from driver!");
+					break;
 			}
 			else if (sink->flushing)
 			{
@@ -1009,9 +1009,6 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 			}
 			else
 			{
-				x++;
-				if (x >= 600)
-					GST_INFO_OBJECT (self, "Pushing eos to basesink x = %d retval = %d", x, retval);
 				gint64 current_pts = gst_dvbaudiosink_get_decoder_time(self);
 				if(current_pts > 0)
 				{
@@ -1028,7 +1025,6 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 						previous_pts = current_pts;
 					}
 				}
-
 			}
 		}
 		GST_BASE_SINK_PREROLL_LOCK(sink);
