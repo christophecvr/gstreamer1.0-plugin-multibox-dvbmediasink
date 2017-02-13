@@ -978,6 +978,8 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 		int x = 0;
 		int retval = 0;
 		gint64 previous_pts = 0;
+		gint64 current_pts = 0;
+		gboolean first_loop_done = FALSE;
 		GST_BASE_SINK_PREROLL_UNLOCK(sink);
 		while (1)
 		{
@@ -995,7 +997,7 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 				ret = FALSE;
 				break;
 			}
-			else if ((pfd[1].revents & POLLIN) == POLLIN)
+			else if ((pfd[1].revents & POLLIN) == POLLIN && first_loop_done)
 			{
 					GST_INFO_OBJECT(self, "got buffer empty from driver!");
 					break;
@@ -1009,10 +1011,16 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 			}
 			else
 			{
-				gint64 current_pts = gst_dvbaudiosink_get_decoder_time(self);
-				if(current_pts > 0)
+				
+				/* max 500 ms needed for 4K stb's for the first loop detection.
+				 * note streamed live media may have an eternal position of 0
+				 * We only will react on empty buffer event for streamed media which remains at zero
+				 * Like usual this is not the case for all live streamed media */
+				current_pts = gst_dvbaudiosink_get_decoder_time(self);
+
+				if(current_pts > 0 || x >= 1)
 				{
-					if(previous_pts == current_pts)
+					if(previous_pts == current_pts && current_pts > 0)
 					{
 						GST_INFO_OBJECT(self,"Media ended push eos to basesink current_pts %" G_GINT64_FORMAT " previous_pts %" G_GINT64_FORMAT,
 							current_pts, previous_pts);
@@ -1020,11 +1028,26 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 					}
 					else
 					{
+						if(previous_pts == 0 && x < 1)
+						{
+							gst_sleepms(500);
+						}						
+						else
+							first_loop_done = TRUE;
 						GST_DEBUG_OBJECT(self,"poll out current_pts %" G_GINT64_FORMAT " previous_pts %" G_GINT64_FORMAT,
 							current_pts, previous_pts);
 						previous_pts = current_pts;
+						if(x < 1)
+							x++;
 					}
 				}
+				else if (x < 1)
+				{
+					gst_sleepms(500);
+					x++;
+				}
+				else
+					first_loop_done = TRUE;
 			}
 		}
 		GST_BASE_SINK_PREROLL_LOCK(sink);

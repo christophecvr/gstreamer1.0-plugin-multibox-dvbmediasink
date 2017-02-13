@@ -579,14 +579,13 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		int x = 0;
 		int retval = 0;
 		gint64 previous_pts = 0;
+		gint64 current_pts = 0;
 		gboolean first_loop_done = FALSE;
 		GST_BASE_SINK_PREROLL_UNLOCK(sink);
  		while (1)
 		{
-			if (first_loop_done)
 				retval = poll(pfd, 2, 250);
-			else
-				retval = poll(pfd, 2, 1000);
+
 			if (retval < 0)
 			{
 				GST_INFO_OBJECT(self,"poll in EVENT_EOS");
@@ -600,18 +599,15 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 				ret = FALSE;
 				break;
 			}
-			else if (pfd[1].revents & POLLIN)
+			/* video must first wait up on right playposition before sending eos by driver or position 
+			 * on fast boxes like the 4 K's the eos is send by short media (below buffer video-mem buffer lenght) to early
+			 * The video did not had the time to start playing.
+			 * If the media is long enough which means media lenght bigger then drivers video-mem this issue does not occur
+			*/
+			else if (pfd[1].revents & POLLIN && first_loop_done)
 			{
-				/* video must first wait up on right playposition before sending eos by driver or position 
-				 * on fast boxes like the 4 K's the eos is send by short media (below buffer video-mem buffer lenght) to early
-				 * The video did not had the time to start playing then we poll with 1 second instead off 250 ms
-				 * If the media is long enough which means media lenght bigger then drivers video-mem this issue does not occur
-				*/
-				if (first_loop_done)
-				{
-					GST_INFO_OBJECT(self, "got buffer empty from driver!");
-					break;
-				}
+				GST_INFO_OBJECT(self, "got buffer empty from driver!");
+				break;
 			}
 			else if (sink->flushing)
 			{
@@ -622,10 +618,16 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 			}
 			else
 			{
-				gint64 current_pts = gst_dvbvideosink_get_decoder_time(self);
-				if(current_pts > 0)
+				
+				/* max 500 ms needed for 4K stb's for the first loop detection.
+				 * note streamed live media may have an eternal position of 0
+				 * We only will react on empty buffer event for streamed media which remains at zero
+				 * Like usual this is not the case for all live streamed media */
+				current_pts = gst_dvbvideosink_get_decoder_time(self);
+
+				if(current_pts > 0 || x >= 1)
 				{
-					if(previous_pts == current_pts)
+					if(previous_pts == current_pts && current_pts > 0)
 					{
 						GST_INFO_OBJECT(self,"Media ended push eos to basesink current_pts %" G_GINT64_FORMAT " previous_pts %" G_GINT64_FORMAT,
 							current_pts, previous_pts);
@@ -633,13 +635,26 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 					}
 					else
 					{
-						first_loop_done = TRUE;
+						if(previous_pts == 0 && x < 1)
+						{
+							gst_sleepms(500);
+						}						
+						else
+							first_loop_done = TRUE;
 						GST_DEBUG_OBJECT(self,"poll out current_pts %" G_GINT64_FORMAT " previous_pts %" G_GINT64_FORMAT,
 							current_pts, previous_pts);
 						previous_pts = current_pts;
+						if(x < 1)
+							x++;
 					}
-					//first_loop_done = TRUE;
 				}
+				else if (x < 1)
+				{
+					gst_sleepms(500);
+					x++;
+				}
+				else
+					first_loop_done = TRUE;
 			}
 		}
 		GST_BASE_SINK_PREROLL_LOCK(sink);
