@@ -579,10 +579,13 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 		int x = 0;
 		int retval = 0;
 		gint64 previous_pts = 0;
+		gint64 current_pts = 0;
+		gboolean first_loop_done = FALSE;
 		GST_BASE_SINK_PREROLL_UNLOCK(sink);
- 		while (x < 600)
+ 		while (1)
 		{
-			retval = poll(pfd, 2, 250);
+				retval = poll(pfd, 2, 250);
+
 			if (retval < 0)
 			{
 				GST_INFO_OBJECT(self,"poll in EVENT_EOS");
@@ -596,7 +599,12 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 				ret = FALSE;
 				break;
 			}
-			else if (pfd[1].revents & POLLIN)
+			/* video must first wait up on right playposition before sending eos by driver or position 
+			 * on fast boxes like the 4 K's the eos is send by short media (below buffer video-mem buffer lenght) to early
+			 * The video did not had the time to start playing.
+			 * If the media is long enough which means media lenght bigger then drivers video-mem this issue does not occur
+			*/
+			else if (pfd[1].revents & POLLIN && first_loop_done)
 			{
 				GST_INFO_OBJECT(self, "got buffer empty from driver!");
 				break;
@@ -610,13 +618,16 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 			}
 			else
 			{
-				x++;
-				if (x >= 600)
-					GST_INFO_OBJECT (self, "Pushing eos to basesink x = %d retval = %d", x, retval);
-				gint64 current_pts = gst_dvbvideosink_get_decoder_time(self);
-				if(current_pts > 0)
+				
+				/* max 500 ms needed for 4K stb's for the first loop detection.
+				 * note streamed live media may have an eternal position of 0
+				 * We only will react on empty buffer event for streamed media which remains at zero
+				 * Like usual this is not the case for all live streamed media */
+				current_pts = gst_dvbvideosink_get_decoder_time(self);
+
+				if(current_pts > 0 || x >= 1)
 				{
-					if(previous_pts == current_pts)
+					if(previous_pts == current_pts && current_pts > 0)
 					{
 						GST_INFO_OBJECT(self,"Media ended push eos to basesink current_pts %" G_GINT64_FORMAT " previous_pts %" G_GINT64_FORMAT,
 							current_pts, previous_pts);
@@ -624,11 +635,26 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 					}
 					else
 					{
+						if(previous_pts == 0 && x < 1)
+						{
+							gst_sleepms(500);
+						}						
+						else
+							first_loop_done = TRUE;
 						GST_DEBUG_OBJECT(self,"poll out current_pts %" G_GINT64_FORMAT " previous_pts %" G_GINT64_FORMAT,
 							current_pts, previous_pts);
 						previous_pts = current_pts;
+						if(x < 1)
+							x++;
 					}
 				}
+				else if (x < 1)
+				{
+					gst_sleepms(500);
+					x++;
+				}
+				else
+					first_loop_done = TRUE;
 			}
 		}
 		GST_BASE_SINK_PREROLL_LOCK(sink);
@@ -1647,8 +1673,8 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 			if (self->fd >= 0)
 			{
 				ioctl(self->fd, VIDEO_STOP, 0);
-				if(ioctl(self->fd, VIDEO_CLEAR_BUFFER) >= 0)
-					GST_INFO_OBJECT(self, "new streamtype VIDEO BUFFER FLUSHED");
+				//if(ioctl(self->fd, VIDEO_CLEAR_BUFFER) >= 0)
+					//GST_INFO_OBJECT(self, "new streamtype VIDEO BUFFER FLUSHED");
 			}
 			self->playing = FALSE;
 		}
