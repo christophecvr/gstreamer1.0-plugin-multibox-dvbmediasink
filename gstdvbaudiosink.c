@@ -1597,18 +1597,6 @@ static gboolean gst_dvbaudiosink_stop(GstBaseSink * basesink)
 		ioctl(self->fd, AUDIO_SELECT_SOURCE, AUDIO_SOURCE_DEMUX);
 		if (ioctl(self->fd, AUDIO_CLEAR_BUFFER) >= 0)
 			GST_INFO_OBJECT(self, "STOP AUDIO BUFFER FLUSHED");
-
-		if (self->rate != 1.0)
-		{
-			int video_fd = open("/dev/dvb/adapter0/video0", O_RDWR);
-			if (video_fd >= 0)
-			{
-				ioctl(video_fd, VIDEO_SLOWMOTION, 0);
-				ioctl(video_fd, VIDEO_FAST_FORWARD, 0);
-				close(video_fd);
-			}
-			self->rate = 1.0;
-		}
 		close(self->fd);
 	}
 	if (self->codec_data)
