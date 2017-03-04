@@ -486,11 +486,12 @@ static void gst_dvbvideosink_get_property (GObject * object, guint prop_id, GVal
 static gint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
 {
 	gint64 cur = 0;
+	gint res = -1;
 	if (self->fd < 0 || !self->playing || !self->pts_written)
 		return GST_CLOCK_TIME_NONE;
 
-	ioctl(self->fd, VIDEO_GET_PTS, &cur);
-	if (cur)
+	res = ioctl(self->fd, VIDEO_GET_PTS, &cur);
+	if (cur && res >= 0)
 	{
 		self->lastpts = cur;
 	}
@@ -498,8 +499,9 @@ static gint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
 	{
 		cur = self->lastpts;
 	}
-	cur *= 11111;
-	cur -= self->timestamp_offset;
+	//cur *= 11111;
+	// timestamp_offset is a gstreamer nanoseconds var
+	cur -= self->timestamp_offset / 11111;
 
 	return cur;
 }
