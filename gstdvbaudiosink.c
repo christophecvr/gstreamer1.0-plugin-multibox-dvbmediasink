@@ -487,9 +487,9 @@ static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
 	{
 		cur = self->lastpts;
 	}
-	//cur *= 11111;
+	cur *= 11111;
 	// timestamp_offset is a gstreamer nanoseconds var
-	cur -= self->timestamp_offset / 11111;
+	cur -= self->timestamp_offset;
 
 	return cur;
 }
