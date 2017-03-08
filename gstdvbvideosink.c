@@ -499,9 +499,9 @@ static gint64 gst_dvbvideosink_get_decoder_time(GstDVBVideoSink *self)
 	{
 		cur = self->lastpts;
 	}
-	//cur *= 11111;
+	cur *= 11111;
 	// timestamp_offset is a gstreamer nanoseconds var
-	cur -= self->timestamp_offset / 11111;
+	cur -= self->timestamp_offset;
 
 	return cur;
 }
