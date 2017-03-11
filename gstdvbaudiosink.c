@@ -534,7 +534,7 @@ static GstCaps *gst_dvbaudiosink_get_caps(GstBaseSink *basesink, GstCaps *filter
 #endif
 	);
 
-#if defined(HAVE_DTS) && !defined(HAVE_DTSDOWNMIX)
+#if defined(HAVE_DTS) && !defined(HAVE_DTSDOWNMIX) && !defined(FORCE_DTSDOWNMIX)
 	/* for the time the static cap has been limited to not be used in case of dts_audio_cd media */
 	gst_caps_append(caps, gst_caps_from_string(DTSCAPS));
 #endif

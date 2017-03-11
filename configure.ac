@@ -257,6 +257,13 @@ if test "$have_dtsdownmix" = "yes"; then
 	AC_DEFINE([HAVE_DTSDOWNMIX],[1],[Define to 1 for DTS downmix support])
 fi
 
+AC_ARG_WITH(force_dtsdownmix,
+	AS_HELP_STRING([--with-force-dtsdownmix],[Forces dts downmix, yes or no]),
+	[force_dtsdownmix=$withval],[force_dtsdownmix=no])
+if test "$force_dtsdownmix" = "yes"; then
+	AC_DEFINE([FORCE_DTSDOWNMIX],[1],[Define to 1 to force dts downmix])
+fi
+
 AC_ARG_WITH(max_pcmrate_48K,
 	AS_HELP_STRING([--with-max-pcmrate-48K],[Max PCM rate 48K, yes or no]),
 	[max_pcmrate_48K=$withval],[max_pcmrate_48K=no])
