@@ -101,9 +101,6 @@ enum
 static guint gst_dvbaudiosink_signals[LAST_SIGNAL] = { 0 };
 
 
-#if defined(HAVE_DTSDOWNMIX) && !defined(HAVE_DTS)
-#define HAVE_DTS
-#endif
 
 #ifdef HAVE_MP3
 #define MPEGCAPS \
@@ -157,14 +154,24 @@ static guint gst_dvbaudiosink_signals[LAST_SIGNAL] = { 0 };
 * So if You want dts_audio_cd support just install gstreamer1.0-plugins-bad-dtsdec.
 * Only by stb's who have been build with option --with-dtsdownmix do not and may not !!
 * install the plugin from gstreamer.
+* One some stb's also a frame-size off 2013 is not supported max is 2012 like mutant51
 */
-
+#ifdef MAX_DTS_FRAMESIZE_2012
+#define DTSCAPS \
+		"audio/x-dts, " \
+		"framed =(boolean) true, " \
+		"endianness = (int) 4321, " \
+		"frame-size = (int) [ 1, 2012 ]; " \
+		"audio/x-private1-dts, " \
+		"framed =(boolean) true; "
+#else
 #define DTSCAPS \
 		"audio/x-dts, " \
 		"framed =(boolean) true, " \
 		"endianness = (int) 4321; " \
 		"audio/x-private1-dts, " \
 		"framed =(boolean) true; "
+#endif
 
 #define WMACAPS \
 		"audio/x-wma; " \
@@ -534,11 +541,11 @@ static GstCaps *gst_dvbaudiosink_get_caps(GstBaseSink *basesink, GstCaps *filter
 #endif
 	);
 
-#if defined(HAVE_DTS) && !defined(HAVE_DTSDOWNMIX) && !defined(FORCE_DTSDOWNMIX)
+#if defined(HAVE_DTS) && !defined(DREAMBOX)
 	/* for the time the static cap has been limited to not be used in case of dts_audio_cd media */
 	gst_caps_append(caps, gst_caps_from_string(DTSCAPS));
 #endif
-#ifdef HAVE_DTSDOWNMIX
+#ifdef HAVE_DTSDOWNMIX && defined(DREAMBOX)
 	if (!get_ac3_downmix_setting())
 	{
 		gst_caps_append(caps, gst_caps_from_string(DTSCAPS));

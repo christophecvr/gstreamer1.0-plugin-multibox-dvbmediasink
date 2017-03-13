@@ -297,6 +297,10 @@ if [ test "$machine" = "xc7362" || test "$machine" = "xc7346" ]; then
 	AC_DEFINE([TYPE2],[1],[build bybass TYPE2])
 fi
 
+if [ test "$machine" = "hd51" ]; then
+	AC_DEFINE([MAX_DTS_FRAMESIZE_2012],[1],[max dts framesize supported by driver])
+fi
+
 DTS_LIBS="-ldca $LIBM"
 AC_SUBST(DTS_LIBS)
 AM_CONDITIONAL(HAVE_DTSDOWNMIX, test "$have_dtsdownmix" = "yes")
