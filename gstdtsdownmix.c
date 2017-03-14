@@ -20,15 +20,24 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
 	GST_PAD_SINK,
 	GST_PAD_ALWAYS,
 	GST_STATIC_CAPS(
-			"audio/x-dts, framed =(boolean) true; "
-			"audio/x-private1-dts, framed =(boolean) true")
+#ifdef DREAMBOX
+			"audio/x-dts, "
+			"framed =(boolean) true; "
+#else
+			"audio/x-dts, "
+			"framed =(boolean) true, "
+			"block-size = (int) [ 1, 512 ], "
+			"frame-size = (int) [ 1, 2012 ]; "
+#endif
+			"audio/x-private1-dts, "
+			"framed =(boolean) true; ")
 	);
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
 	GST_PAD_SRC,
 	GST_PAD_SOMETIMES,
 	GST_STATIC_CAPS(
-			"audio/x-private1-lpcm, framed =(boolean) true, rate = (int) [ 4000, 96000 ], " "channels = (int) [ 1, 6 ]; "
+			"audio/x-private1-lpcm, " "framed =(boolean) true, " "rate = (int) [ 4000, 96000 ], " "channels = (int) [ 1, 6 ]; "
 			)
 	);
 

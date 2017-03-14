@@ -101,7 +101,6 @@ enum
 static guint gst_dvbaudiosink_signals[LAST_SIGNAL] = { 0 };
 
 
-
 #ifdef HAVE_MP3
 #define MPEGCAPS \
 		"audio/mpeg, " \
@@ -155,6 +154,7 @@ static guint gst_dvbaudiosink_signals[LAST_SIGNAL] = { 0 };
 * Only by stb's who have been build with option --with-dtsdownmix do not and may not !!
 * install the plugin from gstreamer.
 * One some stb's also a frame-size off 2013 is not supported max is 2012 like mutant51
+* For those stb's we limit to 2012 frame-size, higher is trough gst-libav
 */
 #ifdef MAX_DTS_FRAMESIZE_2012
 #define DTSCAPS \
@@ -728,13 +728,20 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 	else if (!strcmp(type, "audio/x-dts"))
 	{
 		/* waiting on manufacturers answer about this type of dts but it is already prepared to be used */
-		gint endianness = 0;
+		gint endianness = 0; 
+		gint framesize = 0;
+		gboolean str_framesize = gst_structure_get_int(structure, "frame-size", &framesize);
 		gboolean str_endianness = gst_structure_get_int(structure, "endianness", &endianness);
 		if(str_endianness && endianness == 1234)
 		{
 			GST_INFO_OBJECT (self, "MEDIA IS DTS_AUDIO_CD");
 			self->dts_cd = TRUE;
-			self->bypass = AUDIOTYPE_DTS_HD;
+			self->bypass = AUDIOTYPE_DTS;
+		}
+		else if(str_framesize && framesize == 2013)
+		{
+			GST_INFO_OBJECT (self, "MEDIA IS dtshd96");
+			self->bypass = AUDIOTYPE_DTS;
 		}
 		else
 			self->bypass = AUDIOTYPE_DTS;
@@ -1299,21 +1306,23 @@ GstFlowReturn gst_dvbaudiosink_push_buffer(GstDVBAudioSink *self, GstBuffer *buf
 	pes_header[7] = 0; /* no pts */
 	pes_header[8] = 0;
 	pes_header_len = 9;
-
-	if (self->bypass == AUDIOTYPE_DTS)
+	
+	// looks that this does is never true for the time commented
+	/*if (self->bypass == AUDIOTYPE_DTS)
 	{
 		int pos = 0;
 		while ((pos + 4) <= size)
 		{
-			/* check for DTS-HD */
+			//check for DTS-HD
 			if (!strcmp((char*)(data + pos), "\x64\x58\x20\x25"))
 			{
+				//GST_INFO_OBJECT(self," DTS-HD FOUND %x", (char*)(data + pos));
 				size = pos;
 				break;
 			}
 			++pos;
 		}
-	}
+	}*/
 
 	if (timestamp != GST_CLOCK_TIME_NONE)
 	{
