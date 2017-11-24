@@ -1122,11 +1122,13 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 			}
 		}
 		else if (self->codec_type == CT_VP9 || self->codec_type == CT_VP8 || self->codec_type == CT_VP6 || self->codec_type == CT_SPARK) {
+#if defined(VUPLUS)
 			if (self->codec_type == CT_VP9)
 			{
 				uint32_t vp9_pts = (GST_TIME_AS_USECONDS(GST_BUFFER_PTS_IS_VALID(buffer) ? GST_BUFFER_PTS(buffer) : GST_BUFFER_DTS(buffer)) *45) / 1000;
 				memcpy(&pes_header[9], &vp9_pts, sizeof(vp9_pts));
 			}
+#endif
 			uint32_t len = data_len + 4 + 6;
 			memcpy(pes_header+pes_header_len, "BCMV", 4);
 			pes_header_len += 4;
@@ -1137,7 +1139,11 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 			pes_header[pes_header_len++] = (len & 0x0000FF00) >> 8;
 			pes_header[pes_header_len++] = (len & 0x000000FF) >> 0;
 			pes_header[pes_header_len++] = 0;
+#if defined(VUPLUS)
 			pes_header[pes_header_len++] = 0;
+#else
+			pes_header[pes_header_len++] = self->codec_type == CT_VP9 ? 1 : 0;
+#endif
 			if (self->codec_type == CT_VP6)
 				pes_header[pes_header_len++] = 0;
 		}
