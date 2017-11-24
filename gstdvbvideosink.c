@@ -854,6 +854,7 @@ static int video_write(GstBaseSink *sink, GstDVBVideoSink *self, GstBuffer *buff
 		}
 		if (pfd[1].revents & POLLOUT)
 		{
+			int wr = 0;
 			size_t queuestart, queueend;
 			GstBuffer *queuebuffer;
 			GST_OBJECT_LOCK(self);
@@ -863,7 +864,7 @@ static int video_write(GstBaseSink *sink, GstDVBVideoSink *self, GstBuffer *buff
 				GstMapInfo queuemap;
 				gst_buffer_map(queuebuffer, &queuemap, GST_MAP_READ);
 				queuedata = queuemap.data;
-				int wr = write(self->fd, queuedata + queuestart, queueend - queuestart);
+				wr = write(self->fd, queuedata + queuestart, queueend - queuestart);
 				gst_buffer_unmap(queuebuffer, &queuemap);
 				if (wr < 0)
 				{
@@ -893,7 +894,7 @@ static int video_write(GstBaseSink *sink, GstDVBVideoSink *self, GstBuffer *buff
 				continue;
 			}
 			GST_OBJECT_UNLOCK(self);
-			int wr = write(self->fd, data + written, len - written);
+			wr = write(self->fd, data + written, len - written);
 			if (wr < 0)
 			{
 				switch (errno)
@@ -1121,6 +1122,11 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 			}
 		}
 		else if (self->codec_type == CT_VP9 || self->codec_type == CT_VP8 || self->codec_type == CT_VP6 || self->codec_type == CT_SPARK) {
+			if (self->codec_type == CT_VP9)
+			{
+				uint32_t vp9_pts = (GST_TIME_AS_USECONDS(GST_BUFFER_PTS_IS_VALID(buffer) ? GST_BUFFER_PTS(buffer) : GST_BUFFER_DTS(buffer)) *45) / 1000;
+				memcpy(&pes_header[9], &vp9_pts, sizeof(vp9_pts));
+			}
 			uint32_t len = data_len + 4 + 6;
 			memcpy(pes_header+pes_header_len, "BCMV", 4);
 			pes_header_len += 4;
