@@ -300,6 +300,9 @@ if [ test "$machine" = "hd51" -o "$BOXTYPE" == "vs1500" -o "$BOXTYPE" == "h7" -o
 	AC_DEFINE([MAX_DTS_FRAMESIZE_2012],[1],[max dts framesize supported by driver])
 fi
 
+if test `echo "$machine" | cut -b 1-2` == "u5"; then
+	AC_DEFINE([DINOBOT],[1],[build for DINOBOT ])
+fi
 DTS_LIBS="-ldca $LIBM"
 AC_SUBST(DTS_LIBS)
 AM_CONDITIONAL(HAVE_DTSDOWNMIX, test "$have_dtsdownmix" = "yes")

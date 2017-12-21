@@ -1257,7 +1257,11 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 		payload_len += 4;
 	}
 
-#ifndef VUPLUS
+#if defined(VUPLUS) || defined(DINOBOT)
+	pes_set_payload_size(payload_len, pes_header);
+	if (video_write(sink, self, self->pesheader_buffer, 0, pes_header_len) < 0) goto error;
+	if (video_write(sink, self, buffer, data - original_data, (data - original_data) + data_len) < 0) goto error;
+#else
 	if (self->codec_type == CT_VP9)
 	{
 		if (payload_len > 0x8008)
@@ -1335,13 +1339,6 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 		if (video_write(sink, self, self->pesheader_buffer, 0, pes_header_len) < 0) goto error;
 		if (video_write(sink, self, buffer, data - original_data, (data - original_data) + data_len) < 0) goto error;
 	}
-#else
-
-	pes_set_payload_size(payload_len, pes_header);
-
-	if (video_write(sink, self, self->pesheader_buffer, 0, pes_header_len) < 0) goto error;
-
-	if (video_write(sink, self, buffer, data - original_data, (data - original_data) + data_len) < 0) goto error;
 
 #endif
 	if (GST_BUFFER_PTS_IS_VALID(buffer) || (self->use_dts && GST_BUFFER_DTS_IS_VALID(buffer)))
