@@ -1257,7 +1257,7 @@ static GstFlowReturn gst_dvbvideosink_render(GstBaseSink *sink, GstBuffer *buffe
 		payload_len += 4;
 	}
 
-#if defined(VUPLUS) || defined(DINOBOT)
+#if defined(VUPLUS) || defined(HISILICON)
 	pes_set_payload_size(payload_len, pes_header);
 	if (video_write(sink, self, self->pesheader_buffer, 0, pes_header_len) < 0) goto error;
 	if (video_write(sink, self, buffer, data - original_data, (data - original_data) + data_len) < 0) goto error;
