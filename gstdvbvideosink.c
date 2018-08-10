@@ -650,6 +650,8 @@ static gboolean gst_dvbvideosink_event(GstBaseSink *sink, GstEvent *event)
 						previous_pts = current_pts;
 						if(x < 1)
 							x++;
+						else if (previous_pts == -1)
+							break;
 					}
 				}
 				else if (x < 1)

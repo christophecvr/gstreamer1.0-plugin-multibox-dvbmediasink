@@ -1055,6 +1055,8 @@ static gboolean gst_dvbaudiosink_event(GstBaseSink *sink, GstEvent *event)
 						previous_pts = current_pts;
 						if(x < 1)
 							x++;
+						else if (previous_pts == -1)
+							break;
 					}
 				}
 				else if (x < 1)
@@ -1702,7 +1704,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 		break;
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
 		GST_INFO_OBJECT(self,"GST_STATE_CHANGE_READY_TO_PAUSED");
-		self->paused = TRUE;
+		//self->paused = TRUE;
 		self->first_paused = TRUE;
 		if (self->fd >= 0)
 		{
