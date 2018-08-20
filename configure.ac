@@ -300,7 +300,7 @@ if test "$machine" == "hd51" -o "$machine" == "vs1500" -o "$machine" == "h7" -o 
 	AC_DEFINE([MAX_DTS_FRAMESIZE_2012],[1],[max dts framesize supported by driver])
 fi
 
-if test "$machine" == "u5" -o "$machine" == "u5pvr" -o "$machine" == "u51" -o "$machine" == "u52" -o "$machine" == "u53" -o "$machine" == "h9" -o "$machine" == "hd60" -o "$machine" == "cc1"; then
+if test "$machine" == "u5" -o "$machine" == "u5pvr" -o "$machine" == "u51" -o "$machine" == "u52" -o "$machine" == "u53" -o "$machine" == "h9" -o "$machine" == "hd60" -o "$machine" == "cc1" -o "$machine" == "sf8008"; then
 	AC_DEFINE([HISILICON],[1],[build for HISILICON ])
 fi
 DTS_LIBS="-ldca $LIBM"
