@@ -541,11 +541,11 @@ static GstCaps *gst_dvbaudiosink_get_caps(GstBaseSink *basesink, GstCaps *filter
 #endif
 	);
 
-#if defined(HAVE_DTS) && !defined(DREAMBOX)
+#if defined(HAVE_DTS) && ((!defined(DREAMBOX) && !defined(VUPLUS)) || (defined(VUPLUS) && !defined(HAVE_DTSDOWNMIX)))
 	/* for the time the static cap has been limited to not be used in case of dts_audio_cd media */
 	gst_caps_append(caps, gst_caps_from_string(DTSCAPS));
 #endif
-#ifdef HAVE_DTSDOWNMIX && defined(DREAMBOX)
+#if defined(HAVE_DTSDOWNMIX) && (defined(DREAMBOX) || defined(VUPLUS))
 	if (!get_ac3_downmix_setting())
 	{
 		gst_caps_append(caps, gst_caps_from_string(DTSCAPS));
