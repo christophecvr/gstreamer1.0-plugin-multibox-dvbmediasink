@@ -304,7 +304,7 @@ if test "$machine" == "u5" -o "$machine" == "u41" -o "$machine" == "u42" -o "$ma
 	AC_DEFINE([HISILICON],[1],[build for HISILICON ])
 fi
 
-if test "$machine" == "osmio4k" -o "$machine" == "osmio4kplus"; then
+if test "$machine" == "osmio4k" -o "$machine" == "osmio4kplus" -o "$machine" == "osmini4k"; then
 	AC_DEFINE([OSMIO4K],[1],[build for OSMIO4K ])
 fi
 
