@@ -296,7 +296,7 @@ if test "$machine" == "xc7362" -o "$machine" == "xc7346"; then
 	AC_DEFINE([TYPE2],[1],[build bybass TYPE2])
 fi
 
-if test "$machine" == "hd51" -o "$machine" == "vs1500" -o "$machine" == "h7" -o "$machine" == "8100s"; then
+if test "$machine" == "hd51" -o "$machine" == "vs1500" -o "$machine" == "h7" -o "$machine" == "h17" -o "$machine" == "8100s"; then
 	AC_DEFINE([MAX_DTS_FRAMESIZE_2012],[1],[max dts framesize supported by driver])
 fi
 
