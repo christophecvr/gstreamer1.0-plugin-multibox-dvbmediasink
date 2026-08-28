@@ -100,6 +100,15 @@ enum
 
 static guint gst_dvbaudiosink_signals[LAST_SIGNAL] = { 0 };
 
+#ifdef HAVE_AAC_LOAS
+#define AACLOASCAPS \
+		"audio/mpeg, " \
+		"mpegversion = (int) { 2, 4 }, " \
+		"stream-format = (string) loas, " \
+		"framed = (boolean) true; "
+#else
+#define AACLOASCAPS ""
+#endif
 
 #ifdef HAVE_MP3
 #define MPEGCAPS \
@@ -112,10 +121,7 @@ static guint gst_dvbaudiosink_signals[LAST_SIGNAL] = { 0 };
 		"profile = (string) lc, " \
 		"stream-format = (string) { raw, adts, adif }, " \
 		"framed = (boolean) true; " \
-		"audio/mpeg, " \
-		"mpegversion = (int) { 2, 4 }, " \
-		"stream-format = (string) loas, " \
-		"framed = (boolean) true; "
+		AACLOASCAPS
 #else
 #define MPEGCAPS \
 		"audio/mpeg, " \
@@ -620,8 +626,13 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 				}
 				else if (self->audio_stream_type && !strcmp(self->audio_stream_type, "loas"))
 				{
+#ifdef HAVE_AAC_LOAS
 					self->bypass = AUDIOTYPE_AAC_HE;
 					break;
+#else
+					GST_ELEMENT_ERROR(self, STREAM, FORMAT, (NULL), ("AAC in LOAS/LATM is not supported by this sink configuration"));
+					return FALSE;
+#endif
 				}
 				else
 				{

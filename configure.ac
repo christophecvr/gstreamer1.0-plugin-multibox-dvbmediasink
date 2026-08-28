@@ -180,6 +180,13 @@ if test "$have_mp3" = "yes"; then
 	AC_DEFINE([HAVE_MP3],[1],[Define to 1 for mp3 support])
 fi
 
+AC_ARG_WITH(aac-loas,
+    AS_HELP_STRING([--with-aac-loas],[support AAC in LOAS/LATM, yes or no]),
+    [have_aac_loas=$withval],[have_aac_loas=no])
+if test "$have_aac_loas" = "yes"; then
+    AC_DEFINE([HAVE_AAC_LOAS],[1],[Define to 1 for AAC in LOAS/LATM support])
+fi
+
 AC_ARG_WITH(dts,
 	AS_HELP_STRING([--with-dts],[support dts, yes or no]),
 	[have_dts=$withval],[have_dts=yes])
