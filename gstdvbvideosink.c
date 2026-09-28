@@ -1412,7 +1412,6 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 	t_stream_type prev_stream_type = self->stream_type;
 	self->stream_type = STREAMTYPE_UNKNOWN;
 	gboolean was_playing = self->playing;
-	//self->must_send_header = TRUE;
 
 	GST_INFO_OBJECT (self, "caps = %" GST_PTR_FORMAT, caps);
 
@@ -1767,6 +1766,12 @@ static gboolean gst_dvbvideosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 		self->codec_type = CT_SPARK;
 		GST_INFO_OBJECT (self, "MIMETYPE video/x-flash-video -> VIDEO_SET_STREAMTYPE, STREAMTYPE_SPARK");
 	}
+
+	/* Adaptive streams can replace the parameter sets without changing codec.
+	 * Send the new AVC/HEVC headers before the next timestamped access unit. */
+	if ((self->codec_type == CT_H264 || self->codec_type == CT_H265) &&
+		self->codec_data && gst_buffer_get_size(self->codec_data))
+		self->must_send_header = TRUE;
 
 	if (self->stream_type != STREAMTYPE_UNKNOWN)
 	{
