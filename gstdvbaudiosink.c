@@ -88,6 +88,7 @@ enum
 	PROP_SYNC_E2PLAYER,
 	PROP_ASYNC_E2PLAYER,
 	PROP_RENDER_DELAY,
+	PROP_AUDIO_CHANNEL,
 	PROP_LAST
 };
 
@@ -95,6 +96,7 @@ enum
 enum
 {
 	SIGNAL_GET_DECODER_TIME,
+	SIGNAL_SET_AUDIO_CHANNEL,
 	LAST_SIGNAL
 };
 
@@ -282,6 +284,8 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink * sink, GstCaps * caps);
 static GstCaps *gst_dvbaudiosink_get_caps(GstBaseSink *basesink, GstCaps *filter);
 static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement * element, GstStateChange transition);
 static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self);
+static gboolean gst_dvbaudiosink_set_audio_channel(GstDVBAudioSink *self, gint channel);
+static gboolean gst_dvbaudiosink_apply_audio_channel(GstDVBAudioSink *self, gint channel);
 
 /* initialize the plugin's class */
 static void gst_dvbaudiosink_class_init(GstDVBAudioSinkClass *self)
@@ -320,6 +324,11 @@ static void gst_dvbaudiosink_class_init(GstDVBAudioSinkClass *self)
 	g_object_class_install_property (gobject_class, PROP_RENDER_DELAY,
 			g_param_spec_uint64 ("render-delay", "Renderdelay", "Render-delay increase latency",
 				0, G_MAXUINT64, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+	g_object_class_install_property (gobject_class, PROP_AUDIO_CHANNEL,
+			g_param_spec_int ("audio-channel", "Audio channel",
+				"Selected audio channel: 0 = left, 1 = stereo, 2 = right",
+				GST_DVB_AUDIO_CHANNEL_LEFT, GST_DVB_AUDIO_CHANNEL_RIGHT,
+				GST_DVB_AUDIO_CHANNEL_STEREO, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
 	gstbasesink_class->start = GST_DEBUG_FUNCPTR(gst_dvbaudiosink_start);
 	gstbasesink_class->stop = GST_DEBUG_FUNCPTR(gst_dvbaudiosink_stop);
@@ -340,6 +349,15 @@ static void gst_dvbaudiosink_class_init(GstDVBAudioSinkClass *self)
 		NULL, NULL, gst_dvbsink_marshal_INT64__VOID, G_TYPE_INT64, 0);
 
 	self->get_decoder_time = gst_dvbaudiosink_get_decoder_time;
+
+	/* An action, rather than a writable property, lets the caller handle failure. */
+	gst_dvbaudiosink_signals[SIGNAL_SET_AUDIO_CHANNEL] =
+		g_signal_new("set-audio-channel",
+		G_TYPE_FROM_CLASS(self),
+		G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
+		G_STRUCT_OFFSET(GstDVBAudioSinkClass, set_audio_channel),
+		NULL, NULL, g_cclosure_marshal_generic, G_TYPE_BOOLEAN, 1, G_TYPE_INT);
+	self->set_audio_channel = gst_dvbaudiosink_set_audio_channel;
 }
 
 /* initialize the new element
@@ -364,6 +382,7 @@ static void gst_dvbaudiosink_init(GstDVBAudioSink *self)
 	self->timestamp_offset = 0;
 	self->queue = NULL;
 	self->fd = -1;
+	self->audio_channel = GST_DVB_AUDIO_CHANNEL_STEREO;
 	self->unlockfd[0] = self->unlockfd[1] = -1;
 	self->rate = 1.0;
 	self->timestamp = GST_CLOCK_TIME_NONE;
@@ -466,6 +485,11 @@ static void gst_dvbaudiosink_get_property (GObject * object, guint prop_id, GVal
 
 	switch (prop_id)
 	{
+		case PROP_AUDIO_CHANNEL:
+			GST_OBJECT_LOCK(self);
+			g_value_set_int(value, self->audio_channel);
+			GST_OBJECT_UNLOCK(self);
+			break;
 		case PROP_SYNC:
 			g_value_set_boolean(value, gst_base_sink_get_sync(GST_BASE_SINK(object)));
 			GST_INFO_OBJECT(self, "Requested by other element SYNC VALUE = %s", g_value_get_boolean(value) ? "TRUE" : "FALSE");
@@ -482,6 +506,38 @@ static void gst_dvbaudiosink_get_property (GObject * object, guint prop_id, GVal
 			G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 			break;
 	}
+}
+
+/* Caller holds the object lock, including against decoder open/close. */
+static gboolean gst_dvbaudiosink_apply_audio_channel(GstDVBAudioSink *self, gint channel)
+{
+	audio_channel_select_t selection;
+	switch (channel)
+	{
+		case GST_DVB_AUDIO_CHANNEL_LEFT: selection = AUDIO_MONO_LEFT; break;
+		case GST_DVB_AUDIO_CHANNEL_STEREO: selection = AUDIO_STEREO; break;
+		case GST_DVB_AUDIO_CHANNEL_RIGHT: selection = AUDIO_MONO_RIGHT; break;
+		default: return FALSE;
+	}
+	if (self->fd < 0)
+		return FALSE;
+	if (ioctl(self->fd, AUDIO_CHANNEL_SELECT, selection) < 0)
+	{
+		GST_WARNING_OBJECT(self, "AUDIO_CHANNEL_SELECT %d failed: %s", selection, g_strerror(errno));
+		return FALSE;
+	}
+	self->audio_channel = channel;
+	GST_DEBUG_OBJECT(self, "Audio channel selected: %d", channel);
+	return TRUE;
+}
+
+static gboolean gst_dvbaudiosink_set_audio_channel(GstDVBAudioSink *self, gint channel)
+{
+	gboolean result;
+	GST_OBJECT_LOCK(self);
+	result = gst_dvbaudiosink_apply_audio_channel(self, channel);
+	GST_OBJECT_UNLOCK(self);
+	return result;
 }
 
 static gint64 gst_dvbaudiosink_get_decoder_time(GstDVBAudioSink *self)
@@ -941,6 +997,11 @@ static gboolean gst_dvbaudiosink_set_caps(GstBaseSink *basesink, GstCaps *caps)
 		if(!self->playing && self->fd >= 0)
 			ioctl(self->fd, AUDIO_PLAY);
 		self->playing = TRUE;
+
+	/* Changing the codec can reset the driver's channel selection. */
+	GST_OBJECT_LOCK(self);
+	gst_dvbaudiosink_apply_audio_channel(self, self->audio_channel);
+	GST_OBJECT_UNLOCK(self);
 
 	return TRUE;
 }
@@ -1601,7 +1662,9 @@ static gboolean gst_dvbaudiosink_start(GstBaseSink * basesink)
 
 	self->pesheader_buffer = gst_buffer_new_and_alloc(256);
 
+	GST_OBJECT_LOCK(self);
 	self->fd = open("/dev/dvb/adapter0/audio0", O_RDWR | O_NONBLOCK);
+	GST_OBJECT_UNLOCK(self);
 
 	self->pts_written = FALSE;
 	self->lastpts = 0;
@@ -1622,8 +1685,12 @@ static gboolean gst_dvbaudiosink_stop(GstBaseSink * basesink)
 
 	GST_INFO_OBJECT(self, "stop");
 
+	GST_OBJECT_LOCK(self);
 	if (self->fd >= 0)
 	{
+		/* Do not leave mono output selected for the next service (including DVB). */
+		if (self->audio_channel != GST_DVB_AUDIO_CHANNEL_STEREO)
+			gst_dvbaudiosink_apply_audio_channel(self, GST_DVB_AUDIO_CHANNEL_STEREO);
 		if (self->playing)
 			ioctl(self->fd, AUDIO_STOP);
 		ioctl(self->fd, AUDIO_SELECT_SOURCE, AUDIO_SOURCE_DEMUX);
@@ -1631,6 +1698,9 @@ static gboolean gst_dvbaudiosink_stop(GstBaseSink * basesink)
 			GST_INFO_OBJECT(self, "STOP AUDIO BUFFER FLUSHED");
 		close(self->fd);
 	}
+	self->fd = -1;
+	self->audio_channel = GST_DVB_AUDIO_CHANNEL_STEREO;
+	GST_OBJECT_UNLOCK(self);
 	if (self->codec_data)
 		gst_buffer_unref(self->codec_data);
 	if (self->pesheader_buffer)
@@ -1668,7 +1738,6 @@ static gboolean gst_dvbaudiosink_stop(GstBaseSink * basesink)
 	self->lastpts = 0;
 	self->timestamp_offset = 0;
 	self->queue = NULL;
-	self->fd = -1;
 	self->unlockfd[0] = self->unlockfd[1] = -1;
 	self->rate = 1.0;
 	self->timestamp = GST_CLOCK_TIME_NONE;

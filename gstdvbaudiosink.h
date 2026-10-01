@@ -67,6 +67,13 @@ typedef struct _GstDVBAudioSink		GstDVBAudioSink;
 typedef struct _GstDVBAudioSinkClass	GstDVBAudioSinkClass;
 typedef struct _GstDVBAudioSinkPrivate	GstDVBAudioSinkPrivate;
 
+/* Channel-selection API shared with Enigma2 (not the DVB ioctl enum). */
+typedef enum {
+	GST_DVB_AUDIO_CHANNEL_LEFT,
+	GST_DVB_AUDIO_CHANNEL_STEREO,
+	GST_DVB_AUDIO_CHANNEL_RIGHT
+} GstDVBAudioChannel;
+
 #ifdef DREAMBOX
 typedef enum {
 	AUDIOTYPE_UNKNOWN = -1,
@@ -138,12 +145,14 @@ struct _GstDVBAudioSink
 	gboolean use_set_encoding;
 
 	queue_entry_t *queue;
+	gint audio_channel;
 };
 
 struct _GstDVBAudioSinkClass
 {
 	GstBaseSinkClass parent_class;
 	gint64 (*get_decoder_time) (GstDVBAudioSink *sink);
+	gboolean (*set_audio_channel) (GstDVBAudioSink *sink, gint channel);
 };
 
 GType gst_dvbaudiosink_get_type (void);
