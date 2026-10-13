@@ -31,7 +31,7 @@ libgstdvbaudiosink_la_LIBADD = $(GST_LIBS) -lgstbase-$(GST_MAJORMINOR) $(GST_PLU
 libgstdvbaudiosink_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
 
 # headers we need but don't want installed
-noinst_HEADERS = gstdvbvideosink.h gstdvbaudiosink.h gstdtsdownmix.h gstmpeg4p2unpack.h
+noinst_HEADERS = gstdvbvideosink.h gstdvbaudiosink.h gstdtsdownmix.h gstmpeg4p2unpack.h dtsframe.h
 
 plugin_LTLIBRARIES += libgstmpeg4p2unpack.la
 

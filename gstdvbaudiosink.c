@@ -76,6 +76,9 @@
 #include "common.h"
 #include "gstdvbaudiosink.h"
 #include "gstdvbsink-marshal.h"
+#ifdef DREAMBOX
+#include "dtsframe.h"
+#endif
 
 GST_DEBUG_CATEGORY_STATIC(dvbaudiosink_debug);
 #define GST_CAT_DEFAULT dvbaudiosink_debug
@@ -164,7 +167,12 @@ static guint gst_dvbaudiosink_signals[LAST_SIGNAL] = { 0 };
 * One some stb's also a frame-size off 2013 is not supported max is 2012 like mutant51
 * For those stb's we limit to 2012 frame-size, higher is trough gst-libav
 */
-#ifdef MAX_DTS_FRAMESIZE_2012
+#ifdef DREAMBOX
+#define DTSCAPS \
+		"audio/x-dts, framed = (boolean) true, " \
+		"endianness = (int) { 1234, 4321 }, depth = (int) { 14, 16 }; " \
+		"audio/x-private1-dts, framed = (boolean) true; "
+#elif defined(MAX_DTS_FRAMESIZE_2012)
 #define DTSCAPS \
 		"audio/x-dts, " \
 		"framed =(boolean) true, " \
@@ -603,7 +611,7 @@ static GstCaps *gst_dvbaudiosink_get_caps(GstBaseSink *basesink, GstCaps *filter
 #endif
 	);
 
-#if defined(HAVE_DTS) && ((!defined(DREAMBOX) && !defined(VUPLUS) && !defined(OSMIO4K)) || (defined(VUPLUS) && !defined(HAVE_DTSDOWNMIX)))
+#if defined(HAVE_DTS) && ((!defined(DREAMBOX) && !defined(VUPLUS) && !defined(OSMIO4K)) || ((defined(DREAMBOX) || defined(VUPLUS)) && !defined(HAVE_DTSDOWNMIX)))
 	/* for the time the static cap has been limited to not be used in case of dts_audio_cd media */
 	gst_caps_append(caps, gst_caps_from_string(DTSCAPS));
 #endif
@@ -1520,6 +1528,34 @@ error:
 	}
 }
 
+#ifdef DREAMBOX
+static GstBuffer *gst_dvbaudiosink_dts_buffer(GstBuffer *buffer)
+{
+	GstMapInfo input, output;
+	GstBuffer *converted;
+	gsize size;
+	if (!gst_buffer_map(buffer, &input, GST_MAP_READ))
+		return NULL;
+	converted = gst_buffer_new_allocate(NULL, input.size, NULL);
+	if (!converted || !gst_buffer_map(converted, &output, GST_MAP_WRITE))
+	{
+		if (converted) gst_buffer_unref(converted);
+		gst_buffer_unmap(buffer, &input);
+		return NULL;
+	}
+	size = dvb_dts_normalize(output.data, output.size, input.data, input.size);
+	gst_buffer_unmap(converted, &output);
+	gst_buffer_unmap(buffer, &input);
+	if (!size || !gst_buffer_copy_into(converted, buffer, GST_BUFFER_COPY_METADATA, 0, -1))
+	{
+		gst_buffer_unref(converted);
+		return NULL;
+	}
+	gst_buffer_resize(converted, 0, size);
+	return converted;
+}
+#endif
+
 static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffer)
 {
 	GstDVBAudioSink *self = GST_DVBAUDIOSINK(sink);
@@ -1583,6 +1619,22 @@ static GstFlowReturn gst_dvbaudiosink_render(GstBaseSink *sink, GstBuffer *buffe
 		disposebuffer = buffer;
 		self->cache = NULL;
 	}
+
+#ifdef DREAMBOX
+	if (self->bypass == AUDIOTYPE_DTS)
+	{
+		GstBuffer *converted = gst_dvbaudiosink_dts_buffer(buffer);
+		if (!converted)
+		{
+			gst_buffer_unref(disposebuffer);
+			GST_ELEMENT_ERROR(self, STREAM, FORMAT, (NULL), ("Invalid DTS core frame"));
+			return GST_FLOW_ERROR;
+		}
+		gst_buffer_unref(disposebuffer);
+		buffer = disposebuffer = converted;
+		buffersize = gst_buffer_get_size(buffer);
+	}
+#endif
 
 	if (buffer)
 	{
@@ -1808,7 +1860,7 @@ static GstStateChangeReturn gst_dvbaudiosink_change_state(GstElement *element, G
 			}
 		}
 // dreambox driver issue patch
-#ifdef DREAMBOX
+#if defined(DREAMBOX) && defined(HAVE_DTSDOWNMIX)
 		if(get_downmix_ready())
 			self->using_dts_downmix = TRUE;
 #endif
